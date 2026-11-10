@@ -125,8 +125,11 @@ $topbarSubtitle = 'Tinjau riwayat pencatatan suhu, kelembaban, intensitas cahaya
                   <input type="text" name="search" class="search-input" value="<?= e($search) ?>" placeholder="Cari waktu, tanggal, lampu...">
                 </div>
 
-                <button type="submit" class="search-submit-btn" aria-label="Cari">
+                <button type="submit" class="search-submit-btn" aria-label="Cari" title="Cari">
                   <i class="bi bi-search"></i>
+                </button>
+                <button type="button" class="search-submit-btn" onclick="window.location.reload();" aria-label="Refresh" title="Refresh">
+                  <i class="bi bi-arrow-clockwise"></i>
                 </button>
                 <?php if ($search !== ''): ?>
                   <a href="log_harian.php?rows=<?= e($limit) ?>" class="btn btn-sm btn-light fw-semibold rounded-pill px-3">Reset</a>

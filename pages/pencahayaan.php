@@ -1,5 +1,7 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 if (!isset($_SESSION['login'])) {
     header("Location: ../login.php");
@@ -7,7 +9,7 @@ if (!isset($_SESSION['login'])) {
 }
 
 include '../config/koneksi.php';
-include '../proses/init_tables.php';
+require_once '../proses/init_tables.php';
 chickguard_init_tables($koneksi);
 
 $limit = 5;
@@ -31,14 +33,18 @@ while ($row = mysqli_fetch_assoc($query)) {
 $startData = $totalData > 0 ? $offset + 1 : 0;
 $endData = $totalData > 0 ? $offset + count($jadwal) : 0;
 
-function e($value): string
-{
-    return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+if (!function_exists('e')) {
+    function e($value): string
+    {
+        return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+    }
 }
 
-function checkbox_id($prefix, $value): string
-{
-    return preg_replace('/[^a-zA-Z0-9_-]/', '-', $prefix . '-' . $value);
+if (!function_exists('checkbox_id')) {
+    function checkbox_id($prefix, $value): string
+    {
+        return preg_replace('/[^a-zA-Z0-9_-]/', '-', $prefix . '-' . $value);
+    }
 }
 
 $statusMessages = [

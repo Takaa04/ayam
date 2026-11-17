@@ -1,12 +1,16 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 include 'config/koneksi.php';
-include 'proses/init_tables.php';
+require_once 'proses/init_tables.php';
 chickguard_init_tables($koneksi);
 
-function e($value): string
-{
-    return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+if (!function_exists('e')) {
+    function e($value): string
+    {
+        return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+    }
 }
 
 $token = $_GET['token'] ?? '';

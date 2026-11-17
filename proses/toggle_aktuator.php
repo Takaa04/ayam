@@ -1,5 +1,7 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 header('Content-Type: application/json; charset=utf-8');
 
 if (!isset($_SESSION['login'])) {
@@ -8,7 +10,17 @@ if (!isset($_SESSION['login'])) {
     exit;
 }
 
+$currentUserId = $_SESSION['user_id'] ?? null;
+if (!$currentUserId && !empty($_SESSION['username'])) {
+    $uRes = mysqli_query($koneksi, "SELECT id FROM users WHERE username = '" . mysqli_real_escape_string($koneksi, $_SESSION['username']) . "' LIMIT 1");
+    if ($uRow = mysqli_fetch_assoc($uRes)) {
+        $currentUserId = (int) $uRow['id'];
+        $_SESSION['user_id'] = $currentUserId;
+    }
+}
+
 require_once '../config/koneksi.php';
+require_once '../config/mqtt.php';
 require_once __DIR__ . '/helpers.php';
 
 $raw = file_get_contents('php://input');
@@ -27,9 +39,17 @@ if ($actuator === 'all') {
     if ($executed) {
         $actionMsg = $val ? 'Semua aktuator dinyalakan secara manual' : 'Semua aktuator berhasil dimatikan';
         $timeLabel = waktu_notifikasi();
-        $notifStmt = mysqli_prepare($koneksi, "INSERT INTO notifikasi (pesan, tipe, waktu_label) VALUES (?, 'info', ?)");
-        mysqli_stmt_bind_param($notifStmt, "ss", $actionMsg, $timeLabel);
+        $notifStmt = mysqli_prepare($koneksi, "INSERT INTO notifikasi (user_id, pesan, tipe, waktu_label) VALUES (?, ?, 'info', ?)");
+        mysqli_stmt_bind_param($notifStmt, "iss", $currentUserId, $actionMsg, $timeLabel);
         mysqli_stmt_execute($notifStmt);
+
+        cg_mqtt_publish(MQTT_TOPIC_CMD, [
+            'actuator' => 'all',
+            'value' => $val,
+            'kipas' => $val,
+            'lampu' => $val,
+            'motor_pakan' => $val,
+        ]);
 
         echo json_encode([
             'success' => true,
@@ -77,9 +97,16 @@ if ($actuator === 'auto') {
     if ($executed) {
         $actionMsg = 'Aktuator disinkronkan kembali ke mode otomasi mikroklimat';
         $timeLabel = waktu_notifikasi();
-        $notifStmt = mysqli_prepare($koneksi, "INSERT INTO notifikasi (pesan, tipe, waktu_label) VALUES (?, 'info', ?)");
-        mysqli_stmt_bind_param($notifStmt, "ss", $actionMsg, $timeLabel);
+        $notifStmt = mysqli_prepare($koneksi, "INSERT INTO notifikasi (user_id, pesan, tipe, waktu_label) VALUES (?, ?, 'info', ?)");
+        mysqli_stmt_bind_param($notifStmt, "iss", $currentUserId, $actionMsg, $timeLabel);
         mysqli_stmt_execute($notifStmt);
+
+        cg_mqtt_publish(MQTT_TOPIC_CMD, [
+            'actuator' => 'auto',
+            'kipas' => $kipas,
+            'lampu' => $lampu,
+            'motor_pakan' => $motor,
+        ]);
 
         echo json_encode([
             'success' => true,
@@ -126,17 +153,23 @@ if ($executed) {
         'motor_pakan' => 'Motor Pakan',
     ];
     if ($actuator === 'motor_pakan' && $value === 1) {
-        $feedLogStmt = mysqli_prepare($koneksi, "INSERT INTO log_pemberian_pakan (waktu, metode, status, keterangan) VALUES (NOW(), 'Manual', 'Berhasil', 'Pemberian pakan manual via dispenser')");
+        $feedLogStmt = mysqli_prepare($koneksi, "INSERT INTO log_pemberian_pakan (user_id, waktu, metode, status, keterangan) VALUES (?, NOW(), 'Manual', 'Berhasil', 'Pemberian pakan manual via dispenser')");
         if ($feedLogStmt) {
+            mysqli_stmt_bind_param($feedLogStmt, "i", $currentUserId);
             mysqli_stmt_execute($feedLogStmt);
         }
     }
 
     $actionMsg = $actuatorNames[$actuator] . ' diubah ke ' . $labels[$actuator];
     $timeLabel = waktu_notifikasi();
-    $notifStmt = mysqli_prepare($koneksi, "INSERT INTO notifikasi (pesan, tipe, waktu_label) VALUES (?, 'info', ?)");
-    mysqli_stmt_bind_param($notifStmt, "ss", $actionMsg, $timeLabel);
+    $notifStmt = mysqli_prepare($koneksi, "INSERT INTO notifikasi (user_id, pesan, tipe, waktu_label) VALUES (?, ?, 'info', ?)");
+    mysqli_stmt_bind_param($notifStmt, "iss", $currentUserId, $actionMsg, $timeLabel);
     mysqli_stmt_execute($notifStmt);
+
+    cg_mqtt_publish(MQTT_TOPIC_CMD, [
+        'actuator' => $actuator,
+        'value'    => $value,
+    ]);
 
     echo json_encode([
         'success' => true,

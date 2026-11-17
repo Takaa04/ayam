@@ -113,3 +113,58 @@ function cg_status_kandang(array $sensor, array $settings): array
         'tips' => $tips,
     ];
 }
+
+if (!function_exists('e')) {
+    function e($value): string
+    {
+        return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+    }
+}
+
+if (!function_exists('checkbox_id')) {
+    function checkbox_id($prefix, $value): string
+    {
+        $normalized = strtolower(trim((string) $value));
+        $normalized = preg_replace('/[^a-z0-9]+/', '_', $normalized);
+        return $prefix . '_' . trim($normalized, '_');
+    }
+}
+
+if (!function_exists('cg_model')) {
+    /**
+     * Model lingkungan harian (meniru pola: dingin malam, panas siang).
+     * Menghasilkan [suhu, kelembaban, cahaya, level_air]
+     */
+    function cg_model(float $t): array
+    {
+        $anchorAir = [0 => 92.0, 5 => 80.0, 6 => 85.0, 12 => 75.0, 16 => 78.0, 20 => 74.0, 22 => 71.0, 24 => 70.0];
+        $air = 82.0;
+        $prevH = 0;
+        foreach ($anchorAir as $h => $v) {
+            if ($t <= $h) {
+                $span = max(1, $h - $prevH);
+                $air = $anchorAir[$prevH] + (($v - $anchorAir[$prevH]) / $span) * ($t - $prevH);
+                break;
+            }
+            $prevH = $h;
+        }
+
+        $suhu = 24.8 + 8.0 * exp(-pow($t - 13.5, 2) / 22);
+        $suhu = max(24.0, min(34.5, $suhu + (mt_rand(-10, 10) / 20)));
+        $lembab = max(50.0, min(85.0, 80 - ($suhu - 24.8) * 1.6) + (mt_rand(-8, 8) / 10));
+
+        if ($t < 4.8 || $t > 20.2) {
+            $cahaya = mt_rand(0, 12);
+        } else {
+            $cahaya = 120 + 1720 * exp(-pow($t - 12.5, 2) / 14) + mt_rand(-30, 30);
+            $cahaya = max(10, min(2000, $cahaya));
+        }
+
+        return [
+            round($suhu, 2),
+            round($lembab, 2),
+            round($cahaya, 2),
+            round(max(0, min(100, $air)), 2),
+        ];
+    }
+}

@@ -1,5 +1,7 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 if (!isset($_SESSION['login'])) {
     header("Location: ../login.php");
@@ -7,7 +9,7 @@ if (!isset($_SESSION['login'])) {
 }
 
 include '../config/koneksi.php';
-include '../proses/init_tables.php';
+require_once '../proses/init_tables.php';
 include '../proses/filter_log_harian.php';
 chickguard_init_tables($koneksi);
 
@@ -45,40 +47,48 @@ $statusMessages = [
     ],
 ];
 
-function e($value): string
-{
-    return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
-}
-
-function hari_log($createdAt): string
-{
-    $timestamp = strtotime((string) $createdAt);
-    $hari = [
-        'Sunday' => 'Minggu',
-        'Monday' => 'Senin',
-        'Tuesday' => 'Selasa',
-        'Wednesday' => 'Rabu',
-        'Thursday' => 'Kamis',
-        'Friday' => 'Jumat',
-        'Saturday' => 'Sabtu',
-    ];
-
-    return $hari[date('l', $timestamp)] ?? 'Senin';
-}
-
-function checkbox_id($prefix, $value): string
-{
-    return preg_replace('/[^a-zA-Z0-9_-]/', '-', $prefix . '-' . $value);
-}
-
-function log_page_url(int $page, string $search, int $rows): string
-{
-    $params = ['page' => $page, 'rows' => $rows];
-    if ($search !== '') {
-        $params['search'] = $search;
+if (!function_exists('e')) {
+    function e($value): string
+    {
+        return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
     }
+}
 
-    return 'log_harian.php?' . http_build_query($params);
+if (!function_exists('hari_log')) {
+    function hari_log($createdAt): string
+    {
+        $timestamp = strtotime((string) $createdAt);
+        $hari = [
+            'Sunday' => 'Minggu',
+            'Monday' => 'Senin',
+            'Tuesday' => 'Selasa',
+            'Wednesday' => 'Rabu',
+            'Thursday' => 'Kamis',
+            'Friday' => 'Jumat',
+            'Saturday' => 'Sabtu',
+        ];
+
+        return $hari[date('l', $timestamp)] ?? 'Senin';
+    }
+}
+
+if (!function_exists('checkbox_id')) {
+    function checkbox_id($prefix, $value): string
+    {
+        return preg_replace('/[^a-zA-Z0-9_-]/', '-', $prefix . '-' . $value);
+    }
+}
+
+if (!function_exists('log_page_url')) {
+    function log_page_url(int $page, string $search, int $rows): string
+    {
+        $params = ['page' => $page, 'rows' => $rows];
+        if ($search !== '') {
+            $params['search'] = $search;
+        }
+
+        return 'log_harian.php?' . http_build_query($params);
+    }
 }
 
 $activePage = 'log_harian';

@@ -1,5 +1,7 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 if (!isset($_SESSION['login'])) {
     header("Location: ../login.php");
@@ -112,36 +114,38 @@ foreach ($rows24 as $row) {
  * Model lingkungan harian (meniru pola di mockup: dingin malam, panas siang).
  * Menghasilkan [suhu, kelembaban, cahaya, level_air]
  */
-function cg_model(float $t): array
-{
-    // Level air: linear interpolasi antara jam kunci (refill 06:00 & 16:00)
-    $anchorAir = [0 => 92.0, 5 => 80.0, 6 => 85.0, 12 => 75.0, 16 => 78.0, 20 => 74.0, 22 => 71.0, 24 => 70.0];
-    $air = 82.0;
-    $prevH = 0;
-    foreach ($anchorAir as $h => $v) {
-        if ($t <= $h) {
-            $span = max(1, $h - $prevH);
-            $air = $anchorAir[$prevH] + (($v - $anchorAir[$prevH]) / $span) * ($t - $prevH);
-            break;
+if (!function_exists('cg_model')) {
+    function cg_model(float $t): array
+    {
+        // Level air: linear interpolasi antara jam kunci (refill 06:00 & 16:00)
+        $anchorAir = [0 => 92.0, 5 => 80.0, 6 => 85.0, 12 => 75.0, 16 => 78.0, 20 => 74.0, 22 => 71.0, 24 => 70.0];
+        $air = 82.0;
+        $prevH = 0;
+        foreach ($anchorAir as $h => $v) {
+            if ($t <= $h) {
+                $span = max(1, $h - $prevH);
+                $air = $anchorAir[$prevH] + (($v - $anchorAir[$prevH]) / $span) * ($t - $prevH);
+                break;
+            }
+            $prevH = $h;
         }
-        $prevH = $h;
+
+        // Suhu: puncak 13:30
+        $suhu = 24.8 + 8.0 * exp(-pow($t - 13.5, 2) / 22);
+        $suhu = max(24.0, min(34.5, $suhu + (mt_rand(-10, 10) / 20)));
+
+        // Kelembaban kebalikan suhu
+        $lembab = max(50.0, min(85.0, 80 - ($suhu - 24.8) * 1.6) + (mt_rand(-8, 8) / 10));
+
+        // Cahaya: 0 di malam, puncak 12:30
+        if ($t < 4.8 || $t > 20.2) {
+            $cahaya = mt_rand(0, 12);
+        } else {
+            $cahaya = max(0, (float) (1800 * exp(-pow($t - 12.5, 2) / 30)) + mt_rand(-60, 60));
+        }
+
+        return [$suhu, $lembab, $cahaya, $air];
     }
-
-    // Suhu: puncak 13:30
-    $suhu = 24.8 + 8.0 * exp(-pow($t - 13.5, 2) / 22);
-    $suhu = max(24.0, min(34.5, $suhu + (mt_rand(-10, 10) / 20)));
-
-    // Kelembaban kebalikan suhu
-    $lembab = max(50.0, min(85.0, 80 - ($suhu - 24.8) * 1.6) + (mt_rand(-8, 8) / 10));
-
-    // Cahaya: 0 di malam, puncak 12:30
-    if ($t < 4.8 || $t > 20.2) {
-        $cahaya = mt_rand(0, 12);
-    } else {
-        $cahaya = max(0, (float) (1800 * exp(-pow($t - 12.5, 2) / 30)) + mt_rand(-60, 60));
-    }
-
-    return [$suhu, $lembab, $cahaya, $air];
 }
 
 $nowTs = time();
@@ -1217,9 +1221,9 @@ $statKandang = cg_status_kandang($latestSensor ?: [], $settings);
         }
       }
 
-      // Polling pertama (menyuntik satu pembacaan jika data sudah lama), lalu tiap 30 detik
-      setTimeout(() => refreshDashboard(true), 2500);
-      setInterval(() => refreshDashboard(true), 30000);
+      // Polling awal lalu refresh real-time tiap 3 detik via MQTT / DB
+      setTimeout(() => refreshDashboard(false), 1500);
+      setInterval(() => refreshDashboard(false), 3000);
 
       /* ================= Aktuator: toggle AJAX ================= */
       document.querySelectorAll("input[data-actuator]").forEach(toggle => {

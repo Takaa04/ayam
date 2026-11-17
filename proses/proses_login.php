@@ -1,5 +1,7 @@
 <?php 
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 include '../config/koneksi.php';
 
 $username = $_POST['username'];
@@ -15,6 +17,7 @@ $user = mysqli_fetch_assoc($result);
 if ($user && password_verify($password, $user['password'])) {
 
     $_SESSION['login'] = true;
+    $_SESSION['user_id'] = (int) $user['id'];
     $_SESSION['username'] = $user['username'];
     $_SESSION['role'] = $user['role'];
 

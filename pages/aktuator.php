@@ -1,5 +1,7 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 if (!isset($_SESSION['login'])) {
     header("Location: ../login.php");
@@ -7,7 +9,7 @@ if (!isset($_SESSION['login'])) {
 }
 
 include '../config/koneksi.php';
-include '../proses/init_tables.php';
+require_once '../proses/init_tables.php';
 require_once '../proses/helpers.php';
 chickguard_init_tables($koneksi);
 
@@ -89,36 +91,38 @@ foreach ($rows24 as $row) {
  * Model lingkungan harian (meniru pola di mockup: dingin malam, panas siang).
  * Menghasilkan [suhu, kelembaban, cahaya, level_air]
  */
-function cg_model(float $t): array
-{
-    // Level air: linear interpolasi antara jam kunci (refill 06:00 & 16:00)
-    $anchorAir = [0 => 92.0, 5 => 80.0, 6 => 85.0, 12 => 75.0, 16 => 78.0, 20 => 74.0, 22 => 71.0, 24 => 70.0];
-    $air = 82.0;
-    $prevH = 0;
-    foreach ($anchorAir as $h => $v) {
-        if ($t <= $h) {
-            $span = max(1, $h - $prevH);
-            $air = $anchorAir[$prevH] + (($v - $anchorAir[$prevH]) / $span) * ($t - $prevH);
-            break;
+if (!function_exists('cg_model')) {
+    function cg_model(float $t): array
+    {
+        // Level air: linear interpolasi antara jam kunci (refill 06:00 & 16:00)
+        $anchorAir = [0 => 92.0, 5 => 80.0, 6 => 85.0, 12 => 75.0, 16 => 78.0, 20 => 74.0, 22 => 71.0, 24 => 70.0];
+        $air = 82.0;
+        $prevH = 0;
+        foreach ($anchorAir as $h => $v) {
+            if ($t <= $h) {
+                $span = max(1, $h - $prevH);
+                $air = $anchorAir[$prevH] + (($v - $anchorAir[$prevH]) / $span) * ($t - $prevH);
+                break;
+            }
+            $prevH = $h;
         }
-        $prevH = $h;
+
+        // Suhu: puncak 13:30
+        $suhu = 24.8 + 8.0 * exp(-pow($t - 13.5, 2) / 22);
+        $suhu = max(24.0, min(34.5, $suhu + (mt_rand(-10, 10) / 20)));
+
+        // Kelembaban kebalikan suhu
+        $lembab = max(50.0, min(85.0, 80 - ($suhu - 24.8) * 1.6) + (mt_rand(-8, 8) / 10));
+
+        // Cahaya: 0 di malam, puncak 12:30
+        if ($t < 4.8 || $t > 20.2) {
+            $cahaya = mt_rand(0, 12);
+        } else {
+            $cahaya = max(0, (float) (1800 * exp(-pow($t - 12.5, 2) / 30)) + mt_rand(-60, 60));
+        }
+
+        return [$suhu, $lembab, $cahaya, $air];
     }
-
-    // Suhu: puncak 13:30
-    $suhu = 24.8 + 8.0 * exp(-pow($t - 13.5, 2) / 22);
-    $suhu = max(24.0, min(34.5, $suhu + (mt_rand(-10, 10) / 20)));
-
-    // Kelembaban kebalikan suhu
-    $lembab = max(50.0, min(85.0, 80 - ($suhu - 24.8) * 1.6) + (mt_rand(-8, 8) / 10));
-
-    // Cahaya: 0 di malam, puncak 12:30
-    if ($t < 4.8 || $t > 20.2) {
-        $cahaya = mt_rand(0, 12);
-    } else {
-        $cahaya = max(0, (float) (1800 * exp(-pow($t - 12.5, 2) / 30)) + mt_rand(-60, 60));
-    }
-
-    return [$suhu, $lembab, $cahaya, $air];
 }
 
 $nowTs = time();
@@ -665,6 +669,7 @@ $statKandang = cg_status_kandang($latestSensor ?: [], $settings);
 
       /* ================= Toggle API Call ================= */
       async function sendToggle(actuator, value) {
+        isActuatorUpdating = true;
         try {
           const res = await fetch("../proses/toggle_aktuator.php", {
             method: "POST",
@@ -702,6 +707,8 @@ $statKandang = cg_status_kandang($latestSensor ?: [], $settings);
         } catch (e) {
           console.error(e);
           showToast("Terjadi kendala jaringan saat menghubungkan ESP32.", "warning");
+        } finally {
+          setTimeout(() => { isActuatorUpdating = false; }, 1500);
         }
       }
 
@@ -754,7 +761,10 @@ $statKandang = cg_status_kandang($latestSensor ?: [], $settings);
       }
 
       /* ================= Polling Status ================= */
+      let isActuatorUpdating = false;
+
       setInterval(async () => {
+        if (isActuatorUpdating) return;
         try {
           const res = await fetch("../proses/ambil_data_dashboard.php");
           const data = await res.json();
@@ -762,13 +772,13 @@ $statKandang = cg_status_kandang($latestSensor ?: [], $settings);
             const acts = data.actuators;
             for (const [k, v] of Object.entries(acts)) {
               const toggle = document.querySelector(`.js-actuator-toggle[data-actuator="${k}"]`);
-              if (toggle && toggle.checked !== Boolean(v)) {
-                updateActuatorUI(k, v);
+              if (toggle && toggle.checked !== Boolean(Number(v)) && document.activeElement !== toggle) {
+                updateActuatorUI(k, Number(v));
               }
             }
           }
         } catch (e) {}
-      }, 5000);
+      }, 3000);
     });
   </script>
 </body>

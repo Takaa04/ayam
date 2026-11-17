@@ -1,0 +1,9 @@
+/vendor/
+data_sensor_live.json
+database/backup_*.sql
+.env
+*.log
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

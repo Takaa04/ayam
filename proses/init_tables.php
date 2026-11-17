@@ -27,7 +27,16 @@ function chickguard_init_tables(mysqli $koneksi): void
     )");
 
     mysqli_query($koneksi, "DROP TABLE IF EXISTS jadwal_pakan_minum");
-    mysqli_query($koneksi, "DROP TABLE IF EXISTS jadwal_pencahayaan");
+    mysqli_query($koneksi, "CREATE TABLE IF NOT EXISTS jadwal_pencahayaan (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        jenis VARCHAR(50) NOT NULL DEFAULT 'Lampu Utama',
+        waktu TIME NOT NULL,
+        durasi DECIMAL(5,2) NOT NULL DEFAULT 1.0,
+        hari VARCHAR(120) NOT NULL DEFAULT 'Semua Hari',
+        catatan VARCHAR(255) DEFAULT NULL,
+        is_active TINYINT(1) NOT NULL DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )");
 
     mysqli_query($koneksi, "CREATE TABLE IF NOT EXISTS log_harian (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -60,20 +69,29 @@ function chickguard_init_tables(mysqli $koneksi): void
 
     mysqli_query($koneksi, "CREATE TABLE IF NOT EXISTS log_pemberian_pakan (
         id INT AUTO_INCREMENT PRIMARY KEY,
+        jadwal_id INT NULL DEFAULT NULL,
+        user_id INT NULL DEFAULT NULL,
         waktu DATETIME NOT NULL,
         metode VARCHAR(50) NOT NULL DEFAULT 'Otomatis',
         status VARCHAR(50) NOT NULL DEFAULT 'Berhasil',
         keterangan VARCHAR(255) DEFAULT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX (jadwal_id),
+        INDEX (user_id),
+        CONSTRAINT fk_log_pakan_jadwal FOREIGN KEY (jadwal_id) REFERENCES jadwal_pakan(id) ON DELETE SET NULL ON UPDATE CASCADE,
+        CONSTRAINT fk_log_pakan_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE
     )");
 
     mysqli_query($koneksi, "CREATE TABLE IF NOT EXISTS notifikasi (
         id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NULL DEFAULT NULL,
         pesan VARCHAR(255) NOT NULL,
         tipe VARCHAR(20) NOT NULL DEFAULT 'success',
         waktu_label VARCHAR(50) NOT NULL,
         is_read TINYINT(1) NOT NULL DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX (user_id),
+        CONSTRAINT fk_notifikasi_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE
     )");
 
     mysqli_query($koneksi, "CREATE TABLE IF NOT EXISTS pengaturan_kandang (
@@ -89,12 +107,14 @@ function chickguard_init_tables(mysqli $koneksi): void
     )");
 
     ensure_log_harian_extra_columns($koneksi);
+    ensure_table_relations($koneksi);
     seed_actuator_status($koneksi);
     seed_data_sensor($koneksi);
     seed_log_pemberian_pakan($koneksi);
     seed_notifikasi($koneksi);
     seed_pengaturan_kandang($koneksi);
     seed_jadwal_pakan($koneksi);
+    seed_jadwal_pencahayaan($koneksi);
     seed_log_harian($koneksi);
     sinkronkan_data_log_harian($koneksi);
     tambah_log_harian_otomatis($koneksi);
@@ -121,6 +141,41 @@ function ensure_log_harian_extra_columns(mysqli $koneksi): void
     $checkChecked = mysqli_query($koneksi, "SHOW COLUMNS FROM log_harian LIKE 'is_checked'");
     if ($checkChecked && mysqli_num_rows($checkChecked) > 0) {
         mysqli_query($koneksi, "ALTER TABLE log_harian DROP COLUMN is_checked");
+    }
+}
+
+function ensure_table_relations(mysqli $koneksi): void
+{
+    // log_pemberian_pakan.jadwal_id
+    $c1 = mysqli_query($koneksi, "SHOW COLUMNS FROM log_pemberian_pakan LIKE 'jadwal_id'");
+    if ($c1 && mysqli_num_rows($c1) === 0) {
+        mysqli_query($koneksi, "ALTER TABLE log_pemberian_pakan ADD COLUMN jadwal_id INT NULL DEFAULT NULL AFTER id");
+    }
+    // log_pemberian_pakan.user_id
+    $c2 = mysqli_query($koneksi, "SHOW COLUMNS FROM log_pemberian_pakan LIKE 'user_id'");
+    if ($c2 && mysqli_num_rows($c2) === 0) {
+        mysqli_query($koneksi, "ALTER TABLE log_pemberian_pakan ADD COLUMN user_id INT NULL DEFAULT NULL AFTER jadwal_id");
+    }
+    // fk_log_pakan_jadwal
+    $fk1 = mysqli_query($koneksi, "SELECT CONSTRAINT_NAME FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = DATABASE() AND CONSTRAINT_NAME = 'fk_log_pakan_jadwal'");
+    if ($fk1 && mysqli_num_rows($fk1) === 0) {
+        mysqli_query($koneksi, "ALTER TABLE log_pemberian_pakan ADD CONSTRAINT fk_log_pakan_jadwal FOREIGN KEY (jadwal_id) REFERENCES jadwal_pakan(id) ON DELETE SET NULL ON UPDATE CASCADE");
+    }
+    // fk_log_pakan_user
+    $fk2 = mysqli_query($koneksi, "SELECT CONSTRAINT_NAME FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = DATABASE() AND CONSTRAINT_NAME = 'fk_log_pakan_user'");
+    if ($fk2 && mysqli_num_rows($fk2) === 0) {
+        mysqli_query($koneksi, "ALTER TABLE log_pemberian_pakan ADD CONSTRAINT fk_log_pakan_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE");
+    }
+
+    // notifikasi.user_id
+    $c3 = mysqli_query($koneksi, "SHOW COLUMNS FROM notifikasi LIKE 'user_id'");
+    if ($c3 && mysqli_num_rows($c3) === 0) {
+        mysqli_query($koneksi, "ALTER TABLE notifikasi ADD COLUMN user_id INT NULL DEFAULT NULL AFTER id");
+    }
+    // fk_notifikasi_user
+    $fk3 = mysqli_query($koneksi, "SELECT CONSTRAINT_NAME FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = DATABASE() AND CONSTRAINT_NAME = 'fk_notifikasi_user'");
+    if ($fk3 && mysqli_num_rows($fk3) === 0) {
+        mysqli_query($koneksi, "ALTER TABLE notifikasi ADD CONSTRAINT fk_notifikasi_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE");
     }
 }
 
@@ -219,6 +274,27 @@ function seed_jadwal_pakan(mysqli $koneksi): void
     foreach ($data as $item) {
         [$waktu, $jumlah, $hari, $catatan] = $item;
         mysqli_stmt_bind_param($stmt, "sdss", $waktu, $jumlah, $hari, $catatan);
+        mysqli_stmt_execute($stmt);
+    }
+}
+
+function seed_jadwal_pencahayaan(mysqli $koneksi): void
+{
+    $result = mysqli_query($koneksi, "SELECT COUNT(*) AS total FROM jadwal_pencahayaan");
+    $row = mysqli_fetch_assoc($result);
+    if ((int) ($row['total'] ?? 0) > 0) {
+        return;
+    }
+
+    $data = [
+        ['Lampu Utama', '06:00:00', 12.0, 'Semua Hari', 'Pencahayaan Siang'],
+        ['Lampu Utama', '18:00:00', 4.0, 'Semua Hari', 'Pencahayaan Tambahan Malam'],
+    ];
+
+    $stmt = mysqli_prepare($koneksi, "INSERT INTO jadwal_pencahayaan (jenis, waktu, durasi, hari, catatan, is_active) VALUES (?, ?, ?, ?, ?, 1)");
+    foreach ($data as $item) {
+        [$jenis, $waktu, $durasi, $hari, $catatan] = $item;
+        mysqli_stmt_bind_param($stmt, "ssdss", $jenis, $waktu, $durasi, $hari, $catatan);
         mysqli_stmt_execute($stmt);
     }
 }

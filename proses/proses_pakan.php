@@ -1,5 +1,7 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 if (!isset($_SESSION['login'])) {
     header("Location: ../login.php");
@@ -7,7 +9,7 @@ if (!isset($_SESSION['login'])) {
 }
 
 include '../config/koneksi.php';
-include 'init_tables.php';
+require_once 'init_tables.php';
 chickguard_init_tables($koneksi);
 
 $action = $_POST['action'] ?? $_GET['action'] ?? '';

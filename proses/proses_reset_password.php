@@ -1,7 +1,9 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 include '../config/koneksi.php';
-include 'init_tables.php';
+require_once 'init_tables.php';
 chickguard_init_tables($koneksi);
 
 $token = $_POST['token'] ?? '';

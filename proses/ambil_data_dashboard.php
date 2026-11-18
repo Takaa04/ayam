@@ -135,7 +135,7 @@ if ($logsQuery) {
 }
 
 // --- Notifikasi ---------------------------------------------------------------
-$notifQuery = mysqli_query($koneksi, "SELECT * FROM notifikasi ORDER BY id DESC LIMIT 8");
+$notifQuery = mysqli_query($koneksi, "SELECT * FROM notifikasi ORDER BY id DESC LIMIT 30");
 $notifs = [];
 if ($notifQuery) {
     while ($row = mysqli_fetch_assoc($notifQuery)) {
@@ -144,6 +144,7 @@ if ($notifQuery) {
             'pesan' => $row['pesan'],
             'tipe' => $row['tipe'],
             'waktu_label' => $row['waktu_label'],
+            'is_read' => (int) ($row['is_read'] ?? 0),
         ];
     }
 }

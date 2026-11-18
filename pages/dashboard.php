@@ -87,7 +87,7 @@ $stAir = ($valAir >= (float) $settings['level_air_min'])
     : ['label' => 'Rendah', 'class' => 'status-warning'];
 
 /* ----------------------------------------------------------------------------
- * Data grafik 24 jam (panggil data nyata + model harian sebagai pengisi)
+ * Data grafik 24 jam (punggil data nyata + model harian sebagai pengisi)
  * -------------------------------------------------------------------------- */
 $suhuScaleK = 1.4;    // faktor skala ke sumbu 0-100
 $cahayaScaleK = 65.0; // lux dibagi faktor ini
@@ -199,7 +199,7 @@ $actuators = $actQuery ? mysqli_fetch_assoc($actQuery) : [
 ];
 
 /* ----------------------------------------------------------------------------
- * Jadwal pakan widget
+ * Jadwal pakan widget (maks 2 jadwal aktif)
  * -------------------------------------------------------------------------- */
 $jadwalQuery = mysqli_query($koneksi, "SELECT * FROM jadwal_pakan ORDER BY waktu ASC");
 $feedSchedules = [];
@@ -230,9 +230,9 @@ if (empty($recentLogs)) {
 }
 
 /* ----------------------------------------------------------------------------
- * Notifikasi (muat hingga 100 riwayat terbaru)
+ * Notifikasi
  * -------------------------------------------------------------------------- */
-$notifQuery = mysqli_query($koneksi, "SELECT * FROM notifikasi ORDER BY id DESC LIMIT 100");
+$notifQuery = mysqli_query($koneksi, "SELECT * FROM notifikasi ORDER BY id DESC LIMIT 30");
 $notifs = [];
 if ($notifQuery) {
     while ($row = mysqli_fetch_assoc($notifQuery)) {
@@ -250,7 +250,7 @@ if (empty($notifs)) {
 
 $unreadQuery = mysqli_query($koneksi, "SELECT COUNT(*) AS unread FROM notifikasi WHERE is_read = 0");
 $unreadRow = $unreadQuery ? mysqli_fetch_assoc($unreadQuery) : null;
-$unreadCount = (int) ($unreadRow['unread'] ?? 0);
+$unreadCount = (int) ($unreadRow['unread'] ?? count($notifs));
 
 /* ----------------------------------------------------------------------------
  * Status kandang
@@ -752,7 +752,9 @@ $statKandang = cg_status_kandang($latestSensor ?: [], $settings);
     </div>
   </div>
 
-  <!-- Floating Toast Feedback Aksi Dashboard -->
+
+
+  <!-- Floating Toast Notification -->
   <div class="dashboard-toast" id="dashToast" role="alert" aria-live="assertive" aria-atomic="true">
     <i class="bi bi-info-circle-fill text-info" id="toastIcon"></i>
     <span id="toastMsg">Pengaturan diperbarui.</span>
@@ -792,7 +794,7 @@ $statKandang = cg_status_kandang($latestSensor ?: [], $settings);
       const toastIcon = document.getElementById("toastIcon");
       let toastTimer = null;
 
-      window.showToast = function (message, type = "success") {
+      function showToast(message, type = "success") {
         if (!toastEl) return;
         toastMsg.textContent = message;
         if (type === "success") {
@@ -807,7 +809,7 @@ $statKandang = cg_status_kandang($latestSensor ?: [], $settings);
         toastTimer = setTimeout(() => {
           toastEl.classList.remove("show");
         }, 3200);
-      };
+      }
 
       /* ================= Detailed Sensor Chart ================= */
       const chartCanvas = document.getElementById("sensor24hChart");
@@ -993,7 +995,7 @@ $statKandang = cg_status_kandang($latestSensor ?: [], $settings);
 
       /* ================= Log Data Terbaru: sorting + render ================= */
       const logsTbody = document.getElementById("recentLogsTableBody");
-      let sortState = null;
+      let sortState = null; // {col, dir}
 
       function cellSortValue(row, col) {
         const cells = row.querySelectorAll("td");
@@ -1051,173 +1053,129 @@ $statKandang = cg_status_kandang($latestSensor ?: [], $settings);
         applyTableSort();
       }
 
-      /* ================= Notifikasi State, Dropdown & Bootstrap 5 Toast ================= */
+      /* ================= Notifikasi State & Sinkronisasi ================= */
       const notifListContainer = document.getElementById("notifListContainer");
-      const notifDropdownList = document.getElementById("notifDropdownList");
+      const modalNotifList = document.getElementById("modalNotifList");
       const notifDot = document.getElementById("topbarNotifDot");
       const notifUnreadBadge = document.getElementById("notifUnreadBadge");
 
       let allNotifs = <?= json_encode($notifs, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
       let unreadNotifCount = <?= (int) $unreadCount ?>;
       let knownNotifIds = new Set(allNotifs.map(n => Number(n.id)));
+      let initialPollDone = false;
 
       function dotClass(tipe, isRead) {
         let cls = tipe === "warning" ? "bg-warning" : (tipe === "danger" ? "bg-danger" : "bg-success");
-        if (Number(isRead) === 1) cls += " bg-opacity-50";
+        if (isRead == 1) cls += " bg-opacity-50";
         return cls;
       }
 
-      // Dipanggil oleh topbar.php saat tombol "Tandai Semua Dibaca" diklik
-      window.onAllNotifsMarkedRead = function () {
-        allNotifs = allNotifs.map(n => ({ ...n, is_read: 1 }));
-        setUnread(0);
-        renderNotifs(allNotifs);
-      };
-
-      // Tandai satu item notifikasi dibaca
-      async function markSingleNotifAsRead(notifId) {
-        const target = allNotifs.find(n => Number(n.id) === Number(notifId));
-        if (!target || Number(target.is_read) === 1) return;
-
-        try {
-          const res = await fetch("../proses/notifikasi_tandai.php", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id: Number(notifId) })
-          });
-          const data = await res.json();
-          if (data && data.success) {
-            target.is_read = 1;
-            setUnread(typeof data.unread_count !== "undefined" ? data.unread_count : Math.max(0, unreadNotifCount - 1));
-            renderNotifs(allNotifs);
-          }
-        } catch (err) {
-          console.error("Gagal menandai notifikasi dibaca:", err);
-        }
-      }
-
-      // Pop-up Bootstrap 5 Toast Otomatis 4 Detik saat Notifikasi Baru Masuk
+      // Pop-up Toast Melayang untuk Notifikasi Baru (Auto dismiss 4.5 detik)
       function showNewNotifToast(item) {
         const container = document.getElementById("notifToastContainer");
-        if (!container || !window.bootstrap || !window.bootstrap.Toast) return;
+        if (!container) return;
 
-        const isWarning = item.tipe === "warning";
-        const isDanger = item.tipe === "danger";
-        const badgeBg = isWarning ? "bg-warning text-dark" : (isDanger ? "bg-danger text-white" : "bg-success text-white");
-        const iconBi = isWarning ? "bi-exclamation-triangle-fill" : (isDanger ? "bi-x-octagon-fill" : "bi-bell-fill");
+        const toast = document.createElement("div");
+        const typeClass = item.tipe === "warning" ? "toast-warning" : (item.tipe === "danger" ? "toast-danger" : "toast-success");
+        const iconClass = item.tipe === "warning" ? "icon-warning" : (item.tipe === "danger" ? "icon-danger" : "icon-success");
+        const iconBi = item.tipe === "warning" ? "bi-exclamation-triangle-fill" : (item.tipe === "danger" ? "bi-x-octagon-fill" : "bi-bell-fill");
 
-        const toastEl = document.createElement("div");
-        toastEl.className = "toast border-0 shadow-lg mb-2";
-        toastEl.setAttribute("role", "alert");
-        toastEl.setAttribute("aria-live", "assertive");
-        toastEl.setAttribute("aria-atomic", "true");
-        toastEl.style.borderRadius = "14px";
-        toastEl.style.overflow = "hidden";
-        toastEl.style.cursor = "pointer";
-
-        toastEl.innerHTML = `
-          <div class="toast-header border-0 bg-white pb-1">
-            <span class="badge ${badgeBg} rounded-circle p-1 me-2 d-inline-flex align-items-center justify-content-center" style="width: 24px; height: 24px;">
-              <i class="bi ${iconBi}" style="font-size: 0.75rem;"></i>
-            </span>
-            <strong class="me-auto text-dark" style="font-size: 0.85rem;">Notifikasi Baru</strong>
-            <small class="text-muted">${escapeHtml(item.waktu_label || "Baru saja")}</small>
-            <button type="button" class="btn-close ms-2" data-bs-dismiss="toast" aria-label="Close"></button>
+        toast.className = `notif-toast-item ${typeClass}`;
+        toast.innerHTML = `
+          <div class="notif-toast-icon ${iconClass}">
+            <i class="bi ${iconBi}"></i>
           </div>
-          <div class="toast-body bg-white pt-1 text-secondary" style="font-size: 0.84rem;">
-            ${escapeHtml(item.pesan)}
+          <div class="notif-toast-content">
+            <div class="notif-toast-title">Pemberitahuan Sistem</div>
+            <div class="notif-toast-msg">${escapeHtml(item.pesan)}</div>
+            <div class="notif-toast-time">${escapeHtml(item.waktu_label || "Baru saja")}</div>
           </div>
+          <button type="button" class="notif-toast-close" title="Tutup">&times;</button>
         `;
 
-        // Klik isi toast -> buka dropdown lonceng, scroll ke atas, dan tandai dibaca
-        toastEl.addEventListener("click", (e) => {
-          if (e.target.closest(".btn-close")) return;
+        // Klik toast untuk membuka dropdown dan menandai dibaca
+        toast.addEventListener("click", (e) => {
+          if (e.target.closest(".notif-toast-close")) return;
+          const dropdown = document.getElementById("notifDropdown");
+          if (dropdown) dropdown.style.display = "flex";
+          if (item.id && !item.is_read) {
+            fetch("../proses/notifikasi_tandai.php", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: Number(item.id) })
+            }).then(r => r.json()).then(data => {
+              if (data && data.success) {
+                item.is_read = 1;
+                unreadNotifCount = Math.max(0, unreadNotifCount - 1);
+                setUnread(unreadNotifCount);
+                renderNotifs(allNotifs);
+              }
+            }).catch(() => {});
+          }
+          dismiss();
+        });
+
+        const closeBtn = toast.querySelector(".notif-toast-close");
+        closeBtn.addEventListener("click", (e) => {
           e.stopPropagation();
-          if (typeof window.openTopbarNotificationDropdown === "function") {
-            window.openTopbarNotificationDropdown();
-          }
-          if (item.id) {
-            markSingleNotifAsRead(item.id);
-          }
-          bsToast.hide();
+          dismiss();
         });
 
-        container.appendChild(toastEl);
+        container.appendChild(toast);
+        requestAnimationFrame(() => toast.classList.add("show"));
 
-        const bsToast = new bootstrap.Toast(toastEl, {
-          autohide: true,
-          delay: 4000
-        });
+        let timer = setTimeout(dismiss, 4500);
 
-        toastEl.addEventListener("hidden.bs.toast", () => {
-          toastEl.remove();
-        });
-
-        bsToast.show();
+        function dismiss() {
+          clearTimeout(timer);
+          toast.classList.remove("show");
+          toast.classList.add("hide");
+          setTimeout(() => toast.remove(), 350);
+        }
       }
 
       function renderNotifs(notifs) {
         if (!Array.isArray(notifs)) return;
 
-        // 1. Panel Notifikasi Terbaru di Dashboard (4 item terbaru)
+        // 1. Panel di Dashboard (Notifikasi Terbaru - 4 baris pertama)
         if (notifListContainer) {
           notifListContainer.innerHTML = notifs.slice(0, 4).map(n => `
             <div class="notif-item d-flex gap-2 align-items-start">
               <span class="notif-dot ${dotClass(n.tipe, n.is_read)} mt-1"></span>
               <div>
-                <div class="notif-title" style="${Number(n.is_read) === 1 ? 'font-weight:500;color:#64748b' : ''}">${escapeHtml(n.pesan)}</div>
+                <div class="notif-title" style="${n.is_read == 1 ? 'font-weight:500;color:#64748b' : ''}">${escapeHtml(n.pesan)}</div>
                 <div class="notif-time">${escapeHtml(n.waktu_label)}</div>
               </div>
             </div>`).join("");
         }
 
-        // 2. Dropdown Popover di Ikon Lonceng (Seluruh Riwayat Scrollable, terbaru di atas)
-        if (notifDropdownList) {
+        // 2. Dropdown / Popover Notifikasi (Seluruh Riwayat Scrollable)
+        if (modalNotifList) {
           if (notifs.length === 0) {
-            notifDropdownList.innerHTML = `
+            modalNotifList.innerHTML = `
               <div class="text-center py-4 text-muted small" id="notifEmptyState">
                 <i class="bi bi-bell-slash fs-2 d-block mb-1 text-secondary opacity-50"></i>
                 Belum ada notifikasi
               </div>`;
           } else {
-            notifDropdownList.innerHTML = notifs.map(n => {
-              const isRead = Number(n.is_read) === 1;
-              return `
-                <div class="list-group-item list-group-item-action border-light px-3 py-2 d-flex gap-2 align-items-start notif-dropdown-item ${isRead ? '' : 'bg-success-subtle bg-opacity-10'}"
-                     data-id="${Number(n.id)}"
-                     style="cursor: pointer;">
-                  <span class="notif-dot ${dotClass(n.tipe, n.is_read)} mt-1 flex-shrink-0"
-                        style="width: 9px; height: 9px; border-radius: 50%; display: inline-block;"></span>
-                  <div class="flex-grow-1" style="min-width: 0;">
-                    <div class="notif-item-msg ${isRead ? 'fw-medium text-secondary' : 'fw-semibold text-dark'}" style="font-size: 0.85rem; line-height: 1.35;">
-                      ${escapeHtml(n.pesan)}
-                    </div>
-                    <div class="text-muted mt-1" style="font-size: 0.72rem;">
-                      ${escapeHtml(n.waktu_label)}
-                    </div>
-                  </div>
-                  ${isRead ? '' : '<span class="badge bg-success-subtle text-success rounded-pill flex-shrink-0 notif-new-pill" style="font-size: 0.65rem;">Baru</span>'}
-                </div>`;
-            }).join("");
+            modalNotifList.innerHTML = notifs.map(n => `
+              <div class="notif-popover-item d-flex gap-2.5 align-items-start p-2.5 rounded-3 ${n.is_read == 1 ? '' : 'unread'}" data-id="${Number(n.id)}">
+                <span class="notif-dot ${dotClass(n.tipe, n.is_read)} mt-1.5 flex-shrink-0"></span>
+                <div class="flex-grow-1 min-w-0">
+                  <div class="notif-item-title ${n.is_read == 1 ? 'fw-medium text-secondary' : 'fw-bold text-dark'}">${escapeHtml(n.pesan)}</div>
+                  <div class="notif-item-time text-muted small mt-0.5">${escapeHtml(n.waktu_label)}</div>
+                </div>
+                ${n.is_read == 1 ? '' : '<span class="badge bg-success-subtle text-success rounded-pill px-2 py-0.5 flex-shrink-0" style="font-size:0.68rem;">Baru</span>'}
+              </div>`).join("");
           }
         }
-      }
-
-      // Klik item di dalam dropdown untuk menandai dibaca
-      if (notifDropdownList) {
-        notifDropdownList.addEventListener("click", (e) => {
-          const itemEl = e.target.closest(".notif-dropdown-item");
-          if (!itemEl) return;
-          const id = Number(itemEl.getAttribute("data-id"));
-          if (id) markSingleNotifAsRead(id);
-        });
       }
 
       function setUnread(count) {
         unreadNotifCount = Math.max(0, Number(count) || 0);
         if (notifDot) {
           if (unreadNotifCount > 0) {
-            notifDot.style.display = "inline-block";
+            notifDot.style.display = "inline-flex";
             notifDot.textContent = unreadNotifCount > 99 ? "99+" : unreadNotifCount;
           } else {
             notifDot.style.display = "none";
@@ -1233,6 +1191,8 @@ $statKandang = cg_status_kandang($latestSensor ?: [], $settings);
           .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
           .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
       }
+
+
 
       /* ================= Status Kandang ================= */
       function updateStatusKandang(st) {
@@ -1289,6 +1249,7 @@ $statKandang = cg_status_kandang($latestSensor ?: [], $settings);
         setMetric("metricCahaya", "statusCahaya", Math.round(Number(sensor.cahaya)), metricStatusCahaya(Number(sensor.cahaya)));
         setMetric("metricAir", "statusAir", Math.round(Number(sensor.level_air)), metricStatusAir(Number(sensor.level_air)));
 
+        // Titik terakhir grafik mengikuti pembacaan terbaru
         if (sensorChart) {
           const s = sensor;
           const len = SENSOR_CHART_DATA.suhu.length;
@@ -1342,7 +1303,7 @@ $statKandang = cg_status_kandang($latestSensor ?: [], $settings);
           updateActuatorsUI(data.actuators);
           renderLogs(data.logs);
 
-          // Sinkronisasi riwayat & deteksi notifikasi baru
+          // Sinkronisasi riwayat dan notifikasi baru
           if (Array.isArray(data.notifications)) {
             const newlyArrived = [];
             data.notifications.forEach(incoming => {
@@ -1353,25 +1314,24 @@ $statKandang = cg_status_kandang($latestSensor ?: [], $settings);
               }
             });
 
-            // Munculkan Bootstrap 5 Toast selama 4 detik untuk setiap notifikasi baru
-            if (newlyArrived.length > 0) {
-              newlyArrived
-                .sort((a, b) => Number(a.id) - Number(b.id))
-                .forEach(n => showNewNotifToast(n));
+            // Munculkan popup toast jika ada notifikasi baru masuk setelah polling awal
+            if (initialPollDone && newlyArrived.length > 0) {
+              newlyArrived.forEach(n => showNewNotifToast(n));
             }
+            initialPollDone = true;
 
-            // Gabungkan riwayat lama & data terbaru lalu urutkan DESC (terbaru paling atas)
+            // Pertahankan seluruh riwayat lama & gabungkan data terbaru
             const mergedMap = new Map();
-            allNotifs.forEach(n => mergedMap.set(Number(n.id), n));
             data.notifications.forEach(n => mergedMap.set(Number(n.id), n));
+            allNotifs.forEach(n => {
+              if (!mergedMap.has(Number(n.id))) {
+                mergedMap.set(Number(n.id), n);
+              }
+            });
 
             allNotifs = Array.from(mergedMap.values()).sort((a, b) => Number(b.id) - Number(a.id));
             renderNotifs(allNotifs);
-
-            const unreadTotal = typeof data.unread_count !== "undefined"
-              ? data.unread_count
-              : allNotifs.filter(n => Number(n.is_read) === 0).length;
-            setUnread(unreadTotal);
+            setUnread(typeof data.unread_count !== "undefined" ? data.unread_count : allNotifs.filter(n => !n.is_read).length);
           } else {
             setUnread(data.unread_count ?? 0);
           }
@@ -1379,6 +1339,7 @@ $statKandang = cg_status_kandang($latestSensor ?: [], $settings);
           updateStatusKandang(data.status_kandang);
           lastSensorId = data.sensor.id || lastSensorId;
         } catch (err) {
+          // koneksi gagal: biarkan data terakhir
           console.error("Polling gagal:", err);
         } finally {
           isPolling = false;
@@ -1560,6 +1521,7 @@ $statKandang = cg_status_kandang($latestSensor ?: [], $settings);
         });
       });
 
+      // Sidebar "Pengaturan" → scroll + buka modal
       if (window.location.hash === "#pengaturan-section") {
         setTimeout(() => {
           const target = document.getElementById("pengaturan-section");
@@ -1600,3 +1562,4 @@ $statKandang = cg_status_kandang($latestSensor ?: [], $settings);
   </script>
 </body>
 </html>
+

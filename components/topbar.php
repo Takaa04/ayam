@@ -1,6 +1,6 @@
 <?php
-$username =$_SESSION['username'] ?? 'admin';
-if (isset($koneksi) &&$koneksi instanceof mysqli) {
+$username = $_SESSION['username'] ?? 'admin';
+if (isset($koneksi) && $koneksi instanceof mysqli) {
     $uStmt = mysqli_prepare($koneksi, "SELECT username, role FROM users WHERE username = ? LIMIT 1");
     if ($uStmt) {
         mysqli_stmt_bind_param($uStmt, "s", $username);
@@ -8,22 +8,22 @@ if (isset($koneksi) &&$koneksi instanceof mysqli) {
         $uRes = mysqli_stmt_get_result($uStmt);
         if ($uRow = mysqli_fetch_assoc($uRes)) {
             if (!empty($uRow['username'])) {
-                $username =$uRow['username'];
-                $_SESSION['username'] =$username;
+                $username = $uRow['username'];
+                $_SESSION['username'] = $username;
             }
             if (!empty($uRow['role'])) {
-                $_SESSION['role'] =$uRow['role'];
+                $_SESSION['role'] = $uRow['role'];
             }
         }
     }
 }
 $userRole = ucfirst($_SESSION['role'] ?? 'Admin');
 
-// Query notifikasi jika belum disiapkan di halaman pemanggil (muat hingga 100 riwayat terbaru)
+// Query notifikasi hingga 30 data agar riwayat di dropdown scrollable lengkap
 if (!isset($notifs) || !is_array($notifs)) {
     $notifs = [];
-    if (isset($koneksi) &&$koneksi instanceof mysqli) {
-        $notifQuery = mysqli_query($koneksi, "SELECT * FROM notifikasi ORDER BY id DESC LIMIT 100");
+    if (isset($koneksi) && $koneksi instanceof mysqli) {
+        $notifQuery = mysqli_query($koneksi, "SELECT * FROM notifikasi ORDER BY id DESC LIMIT 30");
         if ($notifQuery) {
             while ($row = mysqli_fetch_assoc($notifQuery)) {
                 $notifs[] = $row;
@@ -41,65 +41,46 @@ if (!isset($notifs) || !is_array($notifs)) {
 }
 
 if (!isset($unreadCount)) {
-    if (isset($koneksi) &&$koneksi instanceof mysqli) {
+    if (isset($koneksi) && $koneksi instanceof mysqli) {
         $unreadQuery = mysqli_query($koneksi, "SELECT COUNT(*) AS unread FROM notifikasi WHERE is_read = 0");
         $unreadRow = $unreadQuery ? mysqli_fetch_assoc($unreadQuery) : null;
-        $unreadCount = (int) ($unreadRow['unread'] ?? 0); } else {$unreadCount = 0;
+        $unreadCount = (int) ($unreadRow['unread'] ?? 0);
+    } else {
+        $unreadCount = 0;
         foreach ($notifs as $n) {
-            if (empty($n['is_read']))$unreadCount++;
+            if (empty($n['is_read'])) $unreadCount++;
         }
     }
 }
-$unreadCount = (int)$unreadCount;
+$unreadCount = (int) $unreadCount;
 
-$topbarTitle =$topbarTitle ?? ('Selamat Datang, ' . $username . '!');
-$topbarSubtitle =$topbarSubtitle ?? 'Pantau kondisi kandang ayam Anda secara real-time melalui dashboard IoT.';
+$topbarTitle    = $topbarTitle    ?? ('Selamat Datang, ' . $username . '!');
+$topbarSubtitle = $topbarSubtitle ?? 'Pantau kondisi kandang ayam Anda secara real-time melalui dashboard IoT.';
 ?>
-<style>
-  /* Styling tambahan untuk Dropdown Notifikasi Scrollable */
-  #notifDropdownList::-webkit-scrollbar {
-    width: 6px;
-  }
-  #notifDropdownList::-webkit-scrollbar-track {
-    background: #f8fafc;
-  }
-  #notifDropdownList::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 10px;
-  }
-  #notifDropdownList::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
-  }
-  .notif-dropdown-item {
-    transition: background-color 0.15s ease;
-  }
-  .notif-dropdown-item:hover {
-    background-color: #f1f5f9 !important;
-  }
-</style>
-
 <header class="topbar-modern topbar">
   <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">
-    <!-- Left greeting -->
+
+    <!-- Left: Greeting -->
     <div class="topbar-greeting">
       <h1 class="topbar-title"><?= htmlspecialchars($topbarTitle, ENT_QUOTES, 'UTF-8') ?></h1>
       <p class="topbar-subtitle"><?= htmlspecialchars($topbarSubtitle, ENT_QUOTES, 'UTF-8') ?></p>
     </div>
 
-    <!-- Right widgets in single row -->
+    <!-- Right: Widgets + Actions -->
     <div class="topbar-right-cluster d-flex align-items-center gap-2 gap-md-3 ms-lg-auto">
-      <!-- Date & Clock Card -->
+
+      <!-- Date & Clock -->
       <div class="topbar-widget-card d-flex align-items-center gap-2">
         <div class="widget-icon text-muted">
           <i class="bi bi-calendar3"></i>
         </div>
         <div class="widget-meta">
-          <div class="widget-primary" id="topbarDate">10 Oktober 2026</div>
-          <div class="widget-secondary" id="topbarClock">15:42:17</div>
+          <div class="widget-primary" id="topbarDate">17 November 2026</div>
+          <div class="widget-secondary" id="topbarClock">16:45:00</div>
         </div>
       </div>
 
-      <!-- Weather Card -->
+      <!-- Weather -->
       <div class="topbar-widget-card d-flex align-items-center gap-2">
         <div class="widget-icon weather-cloud" id="weatherIcon">
           <i class="bi bi-cloud"></i>
@@ -110,81 +91,21 @@ $topbarSubtitle =$topbarSubtitle ?? 'Pantau kondisi kandang ayam Anda secara rea
         </div>
       </div>
 
-      <!-- Notification Bell Dropdown (Bootstrap 5.3) -->
-      <div class="dropdown notif-dropdown-wrap position-relative">
-        <button type="button"
-                class="topbar-action-btn position-relative"
-                id="topbarNotifBellBtn"
-                data-bs-toggle="dropdown"
-                data-bs-auto-close="outside"
-                aria-expanded="false"
-                title="Notifikasi"
-                aria-label="Notifikasi">
+      <!-- Notification Bell -->
+      <div class="topbar-notif-wrapper">
+        <button
+          type="button"
+          class="topbar-action-btn js-toggle-notifications"
+          id="topbarNotifBtn"
+          title="Notifikasi"
+          aria-label="Notifikasi"
+          aria-expanded="false"
+        >
           <i class="bi bi-bell"></i>
-          <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-2 border-white"
-                id="topbarNotifDot"
-                style="font-size: 0.65rem; min-width: 1.25rem; padding: 0.22em 0.45em; <?= $unreadCount > 0 ? '' : 'display: none;' ?>">
-            <?= $unreadCount > 99 ? '99+' :$unreadCount ?>
+          <span class="notif-badge" id="topbarNotifDot" <?= $unreadCount > 0 ? '' : 'style="display:none;"' ?>>
+            <?= $unreadCount > 99 ? '99+' : $unreadCount ?>
           </span>
         </button>
-
-        <!-- Kotak Popover / Dropdown Notifikasi -->
-        <div class="dropdown-menu dropdown-menu-end border-0 shadow-lg p-0 mt-2"
-             id="notifDropdownMenu"
-             aria-labelledby="topbarNotifBellBtn"
-             style="width: 360px; max-width: calc(100vw - 24px); border-radius: 18px; overflow: hidden; z-index: 1060;">
-          
-          <!-- Header Dropdown -->
-          <div class="px-3 py-3 bg-white border-bottom d-flex align-items-center justify-content-between">
-            <div class="d-flex align-items-center gap-2">
-              <i class="bi bi-bell-fill text-warning"></i>
-              <span class="fw-bold text-dark" style="font-size: 0.95rem;">Pusat Notifikasi</span>
-            </div>
-            <span class="badge bg-success-subtle text-success rounded-pill px-2 py-1 fw-semibold" id="notifUnreadBadge" style="font-size: 0.72rem;">
-              <?= $unreadCount ?> Baru
-            </span>
-          </div>
-
-          <!-- Scrollable List Container -->
-          <div class="list-group list-group-flush" id="notifDropdownList" style="max-height: 340px; overflow-y: auto;">
-            <?php if (empty($notifs)): ?>
-              <div class="text-center py-4 text-muted small" id="notifEmptyState">
-                <i class="bi bi-bell-slash fs-2 d-block mb-1 text-secondary opacity-50"></i>
-                Belum ada notifikasi
-              </div>
-            <?php else: ?>
-              <?php foreach ($notifs as $nt): ?>
-                <?php
-                  $isRead = !empty($nt['is_read']);$tipe = $nt['tipe'] ?? 'success';$dotColor = $tipe === 'warning' ? 'bg-warning' : ($tipe === 'danger' ? 'bg-danger' : 'bg-success');
-                ?>
-                <div class="list-group-item list-group-item-action border-light px-3 py-2 d-flex gap-2 align-items-start notif-dropdown-item <?= $isRead ? '' : 'bg-success-subtle bg-opacity-10' ?>"
-                     data-id="<?= (int) ($nt['id'] ?? 0) ?>"
-                     style="cursor: pointer;">
-                  <span class="notif-dot <?= $dotColor ?> mt-1 flex-shrink-0 <?= $isRead ? 'bg-opacity-50' : '' ?>"
-                        style="width: 9px; height: 9px; border-radius: 50%; display: inline-block;"></span>
-                  <div class="flex-grow-1" style="min-width: 0;">
-                    <div class="notif-item-msg <?= $isRead ? 'fw-medium text-secondary' : 'fw-semibold text-dark' ?>" style="font-size: 0.85rem; line-height: 1.35;">
-                      <?= htmlspecialchars($nt['pesan'] ?? '', ENT_QUOTES, 'UTF-8') ?>
-                    </div>
-                    <div class="text-muted mt-1" style="font-size: 0.72rem;">
-                      <?= htmlspecialchars($nt['waktu_label'] ?? '', ENT_QUOTES, 'UTF-8') ?>
-                    </div>
-                  </div>
-                  <?php if (!$isRead): ?>
-                    <span class="badge bg-success-subtle text-success rounded-pill flex-shrink-0 notif-new-pill" style="font-size: 0.65rem;">Baru</span>
-                  <?php endif; ?>
-                </div>
-              <?php endforeach; ?>
-            <?php endif; ?>
-          </div>
-
-          <!-- Footer Dropdown -->
-          <div class="px-3 py-2 bg-light border-top">
-            <button type="button" class="btn btn-sm btn-success rounded-pill px-3 fw-semibold w-100" id="btnMarkAllRead">
-              <i class="bi bi-check2-all me-1"></i> Tandai Semua Dibaca
-            </button>
-          </div>
-        </div>
       </div>
 
       <!-- User Profile -->
@@ -196,127 +117,270 @@ $topbarSubtitle =$topbarSubtitle ?? 'Pantau kondisi kandang ayam Anda secara rea
           <div class="user-name"><?= htmlspecialchars($username, ENT_QUOTES, 'UTF-8') ?></div>
         </div>
       </div>
+
     </div>
   </div>
 </header>
 
-<!-- Bootstrap 5 Toast Container untuk Notifikasi Baru (Auto-hide 4 detik) -->
-<div class="toast-container position-fixed top-0 end-0 p-3" id="notifToastContainer" style="z-index: 1090;"></div>
+<!-- ================================================================
+     Popover Notifikasi — di luar header, di-append ke body via JS
+     ================================================================ -->
+<div class="notif-popover" id="notifDropdown" style="display:none;" role="dialog" aria-label="Panel Notifikasi">
+
+  <!-- Header -->
+  <div class="notif-popover-header">
+    <div class="notif-header-left">
+      <i class="bi bi-bell-fill" style="color:#f59e0b; font-size:0.95rem;"></i>
+      <span class="notif-header-title">Notifikasi</span>
+      <span class="notif-count-badge" id="notifUnreadBadge"><?= $unreadCount ?> Baru</span>
+    </div>
+    <button type="button" class="btn-mark-all" id="btnMarkAllRead">
+      <i class="bi bi-check2-all"></i> Tandai Dibaca
+    </button>
+  </div>
+
+  <!-- Body Scrollable -->
+  <div class="notif-popover-body" id="modalNotifList">
+    <?php if (empty($notifs)): ?>
+      <div class="notif-empty-state">
+        <i class="bi bi-bell-slash"></i>
+        <span>Belum ada notifikasi</span>
+      </div>
+    <?php else: ?>
+      <?php foreach ($notifs as $nt): ?>
+        <?php
+          $dotColor   = ($nt['tipe'] ?? '') === 'warning' ? 'bg-warning'
+                      : (($nt['tipe'] ?? '') === 'danger'  ? 'bg-danger' : 'bg-success');
+          $isUnread   = empty($nt['is_read']);
+        ?>
+        <div
+          class="notif-popover-item <?= $isUnread ? 'unread' : '' ?>"
+          data-id="<?= (int)($nt['id'] ?? 0) ?>"
+        >
+          <span class="notif-dot <?= $dotColor ?> <?= $isUnread ? '' : 'bg-opacity-50' ?>"></span>
+          <div class="notif-item-body">
+            <div class="notif-item-title <?= $isUnread ? 'fw-semibold text-dark' : 'fw-normal text-secondary' ?>">
+              <?= htmlspecialchars($nt['pesan'] ?? '', ENT_QUOTES, 'UTF-8') ?>
+            </div>
+            <div class="notif-item-time">
+              <?= htmlspecialchars($nt['waktu_label'] ?? '', ENT_QUOTES, 'UTF-8') ?>
+            </div>
+          </div>
+          <?php if ($isUnread): ?>
+            <span class="notif-new-badge">Baru</span>
+          <?php endif; ?>
+        </div>
+      <?php endforeach; ?>
+    <?php endif; ?>
+  </div>
+
+  <!-- Footer -->
+  <div class="notif-popover-footer">
+    <button type="button" class="btn-close-notif" id="btnCloseNotifDropdown">
+      <i class="bi bi-x-lg me-1"></i>Tutup
+    </button>
+  </div>
+</div>
+
+<!-- Floating Toast Container -->
+<div class="notif-toast-container" id="notifToastContainer"></div>
 
 <script>
   (() => {
+    /* ---- Clock ---- */
     function updateClock() {
-      const now = new Date();
-      const months = [
-        "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-        "Juli", "Agustus", "September", "Oktober", "November", "Desember"
-      ];
-      
-      const day = now.getDate();
-      const month = months[now.getMonth()];
-      const year = now.getFullYear();
-      
-      const hours = String(now.getHours()).padStart(2, '0');
-      const minutes = String(now.getMinutes()).padStart(2, '0');
-      const seconds = String(now.getSeconds()).padStart(2, '0');
-
-      const dateEl = document.getElementById("topbarDate");
-      const clockEl = document.getElementById("topbarClock");
-      const cctvClockEl = document.getElementById("cctvLiveTime");
-
-      if (dateEl) dateEl.textContent = `${day} ${month} ${year}`;
-      if (clockEl) clockEl.textContent = `${hours}:${minutes}:${seconds}`;
-      if (cctvClockEl) cctvClockEl.textContent = `${hours}:${minutes}:${seconds}`;
+      const now    = new Date();
+      const months = ['Januari','Februari','Maret','April','Mei','Juni',
+                      'Juli','Agustus','September','Oktober','November','Desember'];
+      const hh = String(now.getHours()).padStart(2,'0');
+      const mm = String(now.getMinutes()).padStart(2,'0');
+      const ss = String(now.getSeconds()).padStart(2,'0');
+      const dateEl = document.getElementById('topbarDate');
+      const clockEl = document.getElementById('topbarClock');
+      const cctvEl  = document.getElementById('cctvLiveTime');
+      if (dateEl)  dateEl.textContent  = `${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
+      if (clockEl) clockEl.textContent = `${hh}:${mm}:${ss}`;
+      if (cctvEl)  cctvEl.textContent  = `${hh}:${mm}:${ss}`;
     }
-
     updateClock();
     setInterval(updateClock, 1000);
 
-    // Helper global untuk membuka dropdown lonceng + scroll ke atas
-    window.openTopbarNotificationDropdown = function () {
-      const bellBtn = document.getElementById("topbarNotifBellBtn");
-      if (!bellBtn) return;
+    /* ---- Popover Notifikasi ---- */
+    function initNotifications() {
+      const dropdown = document.getElementById('notifDropdown');
+      const notifBtn = document.getElementById('topbarNotifBtn');
 
-      if (window.scrollY > 80) {
-        window.scrollTo({ top: 0, behavior: "smooth" });
+      if (!dropdown || !notifBtn) return;
+
+      /* Pindahkan popover ke <body> agar tidak dipotong parent sticky */
+      if (dropdown.parentElement !== document.body) {
+        document.body.appendChild(dropdown);
       }
 
-      if (window.bootstrap && window.bootstrap.Dropdown) {
-        const dropdownInstance = bootstrap.Dropdown.getOrCreateInstance(bellBtn);
-        dropdownInstance.show();
-      }
-    };
+      /* Hitung posisi tombol bel dan tempatkan dropdown persis di bawahnya */
+      function repositionPopover() {
+        const rect   = notifBtn.getBoundingClientRect();
+        const margin = 10; // jarak dari tombol ke popover (px)
 
-    function initTopbarNotifications() {
-      // Hubungkan tombol "Lihat Semua" (.js-toggle-notifications) untuk membuka dropdown lonceng
-      document.querySelectorAll(".js-toggle-notifications").forEach(btn => {
+        dropdown.style.top  = (rect.bottom + margin) + 'px';
+
+        /* Pastikan popover tidak keluar layar sebelah kanan */
+        const popW  = 360;
+        const spaceRight = window.innerWidth - rect.right;
+        if (spaceRight >= popW) {
+          dropdown.style.left  = rect.left + 'px';
+          dropdown.style.right = 'auto';
+        } else {
+          dropdown.style.right = (window.innerWidth - rect.right) + 'px';
+          dropdown.style.left  = 'auto';
+        }
+      }
+
+      function openDropdown() {
+        repositionPopover();
+        dropdown.style.display = 'flex';
+        notifBtn.setAttribute('aria-expanded', 'true');
+      }
+
+      function closeDropdown() {
+        dropdown.style.display = 'none';
+        notifBtn.setAttribute('aria-expanded', 'false');
+      }
+
+      function isOpen() {
+        return dropdown.style.display !== 'none';
+      }
+
+      /* Toggle saat klik tombol bel */
+      document.querySelectorAll('.js-toggle-notifications').forEach(btn => {
         if (btn.dataset.topbarBound) return;
-        btn.dataset.topbarBound = "1";
-        btn.addEventListener("click", (e) => {
+        btn.dataset.topbarBound = '1';
+        btn.addEventListener('click', (e) => {
           e.preventDefault();
-          e.stopPropagation(); // Mencegah event bubbling menutup dropdown Bootstrap
-          window.openTopbarNotificationDropdown();
+          e.stopPropagation();
+          isOpen() ? closeDropdown() : openDropdown();
         });
       });
 
-      // Tombol Tandai Semua Dibaca
-      const btnMarkAllRead = document.getElementById("btnMarkAllRead");
-      if (btnMarkAllRead && !btnMarkAllRead.dataset.topbarBound) {
-        btnMarkAllRead.dataset.topbarBound = "1";
-        btnMarkAllRead.addEventListener("click", async (e) => {
-          e.stopPropagation();
+      /* Tombol Tutup di dalam popover */
+      const closeBtn = document.getElementById('btnCloseNotifDropdown');
+      if (closeBtn && !closeBtn.dataset.bound) {
+        closeBtn.dataset.bound = '1';
+        closeBtn.addEventListener('click', closeDropdown);
+      }
+
+      /* Click outside → tutup */
+      document.addEventListener('click', (e) => {
+        if (!isOpen()) return;
+        if (!dropdown.contains(e.target) && !e.target.closest('.js-toggle-notifications')) {
+          closeDropdown();
+        }
+      });
+
+      /* Escape → tutup */
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && isOpen()) closeDropdown();
+      });
+
+      /* Scroll/resize → reposisi jika sedang terbuka */
+      window.addEventListener('resize', () => { if (isOpen()) repositionPopover(); }, { passive: true });
+      document.addEventListener('scroll', () => { if (isOpen()) repositionPopover(); }, { passive: true, capture: true });
+
+      /* Cegah klik dalam popover menutup sendiri */
+      dropdown.addEventListener('click', (e) => e.stopPropagation());
+
+      /* ---- Tandai Semua Dibaca ---- */
+      const btnMarkAll = document.getElementById('btnMarkAllRead');
+      if (btnMarkAll && !btnMarkAll.dataset.bound) {
+        btnMarkAll.dataset.bound = '1';
+        btnMarkAll.addEventListener('click', async () => {
           try {
-            const res = await fetch("../proses/notifikasi_tandai.php", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
+            const res  = await fetch('../proses/notifikasi_tandai.php', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ semua: true })
             });
             const data = await res.json();
-            if (data && data.success) {
-              const badge = document.getElementById("topbarNotifDot");
-              const headerBadge = document.getElementById("notifUnreadBadge");
-              if (badge) {
-                badge.textContent = "0";
-                badge.style.display = "none";
-              }
-              if (headerBadge) {
-                headerBadge.textContent = "0 Baru";
-              }
+            if (data?.success) {
+              /* Update badge */
+              const dot = document.getElementById('topbarNotifDot');
+              if (dot) dot.style.display = 'none';
+              const badge = document.getElementById('notifUnreadBadge');
+              if (badge) badge.textContent = '0 Baru';
 
-              document.querySelectorAll("#notifDropdownList .notif-new-pill").forEach(b => b.remove());
-              document.querySelectorAll("#notifDropdownList .notif-dropdown-item").forEach(item => {
-                item.classList.remove("bg-success-subtle", "bg-opacity-10");
+              /* Update tampilan item */
+              document.querySelectorAll('#modalNotifList .notif-popover-item.unread').forEach(item => {
+                item.classList.remove('unread');
+                const title = item.querySelector('.notif-item-title');
+                if (title) title.className = 'notif-item-title fw-normal text-secondary';
+                const dot  = item.querySelector('.notif-dot');
+                if (dot) dot.classList.add('bg-opacity-50');
+                const newBadge = item.querySelector('.notif-new-badge');
+                if (newBadge) newBadge.remove();
               });
-              document.querySelectorAll("#notifDropdownList .notif-item-msg").forEach(msg => {
-                msg.classList.remove("fw-semibold", "text-dark");
-                msg.classList.add("fw-medium", "text-secondary");
-              });
-              document.querySelectorAll("#notifDropdownList .notif-dot, #notifListContainer .notif-dot").forEach(d => {
-                d.classList.add("bg-opacity-50");
-              });
-              document.querySelectorAll("#notifListContainer .notif-title").forEach(t => {
-                t.style.fontWeight = "500";
-                t.style.color = "#64748b";
+              document.querySelectorAll('#notifListContainer .notif-title').forEach(t => {
+                t.style.fontWeight = '500';
+                t.style.color = '#64748b';
               });
 
-              if (typeof window.onAllNotifsMarkedRead === "function") {
-                window.onAllNotifsMarkedRead();
-              }
-              if (typeof showToast === "function") {
-                showToast(data.message || "Semua notifikasi ditandai dibaca.", "success");
+              if (typeof setUnread === 'function') setUnread(0);
+              if (typeof showToast === 'function') showToast('Semua notifikasi ditandai dibaca.', 'success');
+            }
+          } catch (err) {
+            console.error('Gagal menandai notifikasi:', err);
+          }
+        });
+      }
+
+      /* ---- Klik per item (tandai satu) ---- */
+      const listEl = document.getElementById('modalNotifList');
+      if (listEl && !listEl.dataset.bound) {
+        listEl.dataset.bound = '1';
+        listEl.addEventListener('click', async (e) => {
+          const item = e.target.closest('.notif-popover-item.unread');
+          if (!item) return;
+          const id = Number(item.getAttribute('data-id'));
+          if (!id) return;
+          try {
+            const res  = await fetch('../proses/notifikasi_tandai.php', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id })
+            });
+            const data = await res.json();
+            if (data?.success) {
+              item.classList.remove('unread');
+              const badge    = item.querySelector('.notif-new-badge');
+              if (badge)  badge.remove();
+              const dot      = item.querySelector('.notif-dot');
+              if (dot)    dot.classList.add('bg-opacity-50');
+              const title    = item.querySelector('.notif-item-title');
+              if (title)  title.className = 'notif-item-title fw-normal text-secondary';
+
+              if (typeof setUnread === 'function') {
+                setUnread(data.unread_count ?? 0);
+              } else {
+                const badgeEl = document.getElementById('topbarNotifDot');
+                const count   = data.unread_count ?? 0;
+                if (badgeEl) {
+                  badgeEl.style.display = count > 0 ? 'inline-flex' : 'none';
+                  badgeEl.textContent   = count > 99 ? '99+' : count;
+                }
+                const countBadge = document.getElementById('notifUnreadBadge');
+                if (countBadge) countBadge.textContent = `${count} Baru`;
               }
             }
           } catch (err) {
-            console.error("Gagal menandai notifikasi:", err);
+            console.error('Gagal menandai notifikasi:', err);
           }
         });
       }
     }
 
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", initTopbarNotifications);
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initNotifications);
     } else {
-      initTopbarNotifications();
+      initNotifications();
     }
   })();
 </script>

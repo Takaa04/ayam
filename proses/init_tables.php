@@ -102,10 +102,13 @@ function chickguard_init_tables(mysqli $koneksi): void
         kelembaban_min DECIMAL(5,2) NOT NULL DEFAULT 55.0,
         kelembaban_maks DECIMAL(5,2) NOT NULL DEFAULT 75.0,
         cahaya_min DECIMAL(8,2) NOT NULL DEFAULT 500,
+        cahaya_maks DECIMAL(8,2) NOT NULL DEFAULT 2000,
         level_air_min DECIMAL(5,2) NOT NULL DEFAULT 50.0,
+         level_air_maks DECIMAL(5,2) NOT NULL DEFAULT 95.0,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     )");
 
+    ensure_pengaturan_kandang_extra_columns($koneksi);
     ensure_log_harian_extra_columns($koneksi);
     ensure_table_relations($koneksi);
     seed_actuator_status($koneksi);
@@ -118,6 +121,19 @@ function chickguard_init_tables(mysqli $koneksi): void
     seed_log_harian($koneksi);
     sinkronkan_data_log_harian($koneksi);
     tambah_log_harian_otomatis($koneksi);
+}
+
+function ensure_pengaturan_kandang_extra_columns(mysqli $koneksi): void
+{
+    $checkCahaya = mysqli_query($koneksi, "SHOW COLUMNS FROM pengaturan_kandang LIKE 'cahaya_maks'");
+    if ($checkCahaya && mysqli_num_rows($checkCahaya) === 0) {
+        mysqli_query($koneksi, "ALTER TABLE pengaturan_kandang ADD cahaya_maks DECIMAL(8,2) NOT NULL DEFAULT 2000.00 AFTER cahaya_min");
+    }
+
+    $checkAir = mysqli_query($koneksi, "SHOW COLUMNS FROM pengaturan_kandang LIKE 'level_air_maks'");
+    if ($checkAir && mysqli_num_rows($checkAir) === 0) {
+        mysqli_query($koneksi, "ALTER TABLE pengaturan_kandang ADD level_air_maks DECIMAL(5,2) NOT NULL DEFAULT 95.00 AFTER level_air_min");
+    }
 }
 
 function ensure_log_harian_extra_columns(mysqli $koneksi): void

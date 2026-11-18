@@ -48,7 +48,9 @@ $settings = $settingQuery ? mysqli_fetch_assoc($settingQuery) : [
     'kelembaban_min'      => 55.0,
     'kelembaban_maks'     => 75.0,
     'cahaya_min'          => 500,
+    'cahaya_maks'         => 2000,
     'level_air_min'       => 50.0,
+    'level_air_maks'      => 95.0,
 ];
 
 if (empty($settings['tanggal_masuk_ayam'])) {
@@ -207,11 +209,31 @@ $umurAyamHari = max(0, (int) round((strtotime('today') - $tglMasukTs) / 86400));
 
                 <div class="col-6 col-md-3 col-lg-2">
                   <div class="form-group-modern">
+                    <label for="inputCahayaMaks" class="form-label-modern">
+                      <i class="bi bi-sun text-warning"></i> Cahaya Maks (lux)
+                    </label>
+                    <input type="number" step="1" class="form-control-modern" id="inputCahayaMaks" name="cahaya_maks" 
+                           value="<?= (float) ($settings['cahaya_maks'] ?? 2000) ?>" required>
+                  </div>
+                </div>
+
+                <div class="col-6 col-md-3 col-lg-2">
+                  <div class="form-group-modern">
                     <label for="inputAirMin" class="form-label-modern">
                       <i class="bi bi-water text-primary"></i> Level Air Min (%)
                     </label>
                     <input type="number" step="1" class="form-control-modern" id="inputAirMin" name="level_air_min" 
                            value="<?= (float) $settings['level_air_min'] ?>" required>
+                  </div>
+                </div>
+
+                <div class="col-6 col-md-3 col-lg-2">
+                  <div class="form-group-modern">
+                    <label for="inputAirMaks" class="form-label-modern">
+                      <i class="bi bi-droplet-fill text-primary"></i> Level Air Maks (%)
+                    </label>
+                    <input type="number" step="1" class="form-control-modern" id="inputAirMaks" name="level_air_maks" 
+                           value="<?= (float) ($settings['level_air_maks'] ?? 95) ?>" required>
                   </div>
                 </div>
               </div>
@@ -549,7 +571,9 @@ $umurAyamHari = max(0, (int) round((strtotime('today') - $tglMasukTs) / 86400));
             kelembaban_min: document.getElementById("inputLembapMin").value,
             kelembaban_maks: document.getElementById("inputLembapMaks").value,
             cahaya_min: document.getElementById("inputCahayaMin").value,
-            level_air_min: document.getElementById("inputAirMin").value
+            cahaya_maks: document.getElementById("inputCahayaMaks").value,
+            level_air_min: document.getElementById("inputAirMin").value,
+            level_air_maks: document.getElementById("inputAirMaks").value
           };
 
           try {

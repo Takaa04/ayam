@@ -23,7 +23,9 @@ $suhuMaks = (float) ($raw['suhu_maks'] ?? 34.0);
 $lembapMin = (float) ($raw['kelembaban_min'] ?? 55.0);
 $lembapMaks = (float) ($raw['kelembaban_maks'] ?? 75.0);
 $cahayaMin = (float) ($raw['cahaya_min'] ?? 500.0);
+$cahayaMaks = (float) ($raw['cahaya_maks'] ?? 2000.0);
 $airMin = (float) ($raw['level_air_min'] ?? 50.0);
+$airMaks = (float) ($raw['level_air_maks'] ?? 95.0);
 
 if ($nama === '') {
     http_response_code(400);
@@ -47,23 +49,35 @@ if ($lembapMin >= $lembapMaks) {
     exit;
 }
 
+if ($cahayaMin >= $cahayaMaks) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'message' => 'Cahaya minimum harus lebih kecil dari maksimum']);
+    exit;
+}
+
+if ($airMin >= $airMaks) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'message' => 'Level air minimum harus lebih kecil dari maksimum']);
+    exit;
+}
+
 $cek = mysqli_query($koneksi, "SELECT id FROM pengaturan_kandang WHERE id = 1 LIMIT 1");
 
 if ($cek && mysqli_num_rows($cek) > 0) {
     $stmt = mysqli_prepare(
         $koneksi,
         "UPDATE pengaturan_kandang
-         SET nama_kandang = ?, tanggal_masuk_ayam = ?, suhu_min = ?, suhu_maks = ?, kelembaban_min = ?, kelembaban_maks = ?, cahaya_min = ?, level_air_min = ?
+         SET nama_kandang = ?, tanggal_masuk_ayam = ?, suhu_min = ?, suhu_maks = ?, kelembaban_min = ?, kelembaban_maks = ?, cahaya_min = ?, cahaya_maks = ?, level_air_min = ?, level_air_maks = ?
          WHERE id = 1"
     );
-    mysqli_stmt_bind_param($stmt, "ssdddddd", $nama, $tglMasuk, $suhuMin, $suhuMaks, $lembapMin, $lembapMaks, $cahayaMin, $airMin);
+    mysqli_stmt_bind_param($stmt, "ssdddddddd", $nama, $tglMasuk, $suhuMin, $suhuMaks, $lembapMin, $lembapMaks, $cahayaMin, $cahayaMaks, $airMin, $airMaks);
 } else {
     $stmt = mysqli_prepare(
         $koneksi,
-        "INSERT INTO pengaturan_kandang (id, nama_kandang, tanggal_masuk_ayam, suhu_min, suhu_maks, kelembaban_min, kelembaban_maks, cahaya_min, level_air_min)
-         VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)"
+        "INSERT INTO pengaturan_kandang (id, nama_kandang, tanggal_masuk_ayam, suhu_min, suhu_maks, kelembaban_min, kelembaban_maks, cahaya_min, cahaya_maks, level_air_min, level_air_maks)
+         VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
-    mysqli_stmt_bind_param($stmt, "ssdddddd", $nama, $tglMasuk, $suhuMin, $suhuMaks, $lembapMin, $lembapMaks, $cahayaMin, $airMin);
+    mysqli_stmt_bind_param($stmt, "ssdddddddd", $nama, $tglMasuk, $suhuMin, $suhuMaks, $lembapMin, $lembapMaks, $cahayaMin, $cahayaMaks, $airMin, $airMaks);
 }
 
 $success = mysqli_stmt_execute($stmt);
@@ -90,6 +104,8 @@ echo json_encode([
         'kelembaban_min' => $lembapMin,
         'kelembaban_maks' => $lembapMaks,
         'cahaya_min' => $cahayaMin,
+        'cahaya_maks' => $cahayaMaks,
         'level_air_min' => $airMin,
+        'level_air_maks' => $airMaks,
     ],
 ]);

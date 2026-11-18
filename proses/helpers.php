@@ -55,7 +55,9 @@ function cg_status_kandang(array $sensor, array $settings): array
     $lembapMin = (float) ($settings['kelembaban_min'] ?? 55.0);
     $lembapMaks = (float) ($settings['kelembaban_maks'] ?? 75.0);
     $cahayaMin = (float) ($settings['cahaya_min'] ?? 500.0);
+    $cahayaMaks = (float) ($settings['cahaya_maks'] ?? 2000.0);
     $airMin = (float) ($settings['level_air_min'] ?? 50.0);
+    $airMaks = (float) ($settings['level_air_maks'] ?? 95.0);
 
     $masalah = [];
 
@@ -71,11 +73,15 @@ function cg_status_kandang(array $sensor, array $settings): array
         $masalah[] = 'Kelembaban di bawah batas normal (' . number_format($lembap, 1, '.', ',') . '%)';
     }
 
-    if ($cahaya < $cahayaMin) {
+    if ($cahaya > $cahayaMaks) {
+        $masalah[] = 'Pencahayaan berlebih/silau (' . number_format($cahaya, 0, '.', ',') . ' lux)';
+    } elseif ($cahaya < $cahayaMin) {
         $masalah[] = 'Pencahayaan kurang (' . number_format($cahaya, 0, '.', ',') . ' lux)';
     }
 
-    if ($air < $airMin) {
+    if ($air > $airMaks) {
+        $masalah[] = 'Level air tangki meluap (' . number_format($air, 0, '.', ',') . '%)';
+    } elseif ($air < $airMin) {
         $masalah[] = 'Level air rendah (' . number_format($air, 0, '.', ',') . '%)';
     }
 
@@ -100,12 +106,16 @@ function cg_status_kandang(array $sensor, array $settings): array
         $tips = 'Suhu rendah terdeteksi. Aktifkan heater atau lampu pemanas untuk menjaga suhu kandang.';
     } elseif ($air < $airMin) {
         $tips = 'Level air rendah. Segera lakukan pengisian minum agar ayam tetap terhidrasi.';
+    } elseif ($air > $airMaks) {
+        $tips = 'Level air melebihi batas aman (potensi meluap). Segera periksa pelampung atau matikan pompa pengisi air.';
     } elseif ($lembap > $lembapMaks) {
         $tips = 'Kelembaban tinggi. Perbanyak sirkulasi udara agar lantai kandang tidak lembap.';
     } elseif ($lembap < $lembapMin) {
         $tips = 'Kelembaban rendah. Tambahkan air minum atau semprotkan air halus untuk menstabilkan.';
     } elseif ($cahaya < $cahayaMin) {
         $tips = 'Cahaya kurang. Nyalakan lampu kandang agar ayam tetap aktif makan.';
+    } elseif ($cahaya > $cahayaMaks) {
+        $tips = 'Cahaya terlalu terik. Tutup tirai atau redupkan lampu kandang untuk mencegah stres/kanibalisme pada ayam.';
     }
 
     return [

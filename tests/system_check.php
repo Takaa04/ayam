@@ -34,7 +34,6 @@ $pages = [
     'pages/dashboard.php',
     'pages/aktuator.php',
     'pages/pakan.php',
-    'pages/pencahayaan.php',
     'pages/log_harian.php',
     'pages/pengaturan.php',
     'login.php',
@@ -69,10 +68,5 @@ assert($chk['jadwal_id'] === null, "Jadwal id should be null after parent delete
 assert((int)$chk['user_id'] === 1, "User id should remain intact");
 mysqli_query($koneksi, "DELETE FROM log_pemberian_pakan WHERE id = $lid");
 echo "[OK] Cascade & FK behavior verified\n";
-
-// 5. Test Jadwal Pencahayaan table
-$chkLight = mysqli_query($koneksi, "SELECT COUNT(*) AS total FROM jadwal_pencahayaan");
-assert($chkLight !== false, "Table jadwal_pencahayaan not accessible");
-echo "[OK] Jadwal pencahayaan table verified\n";
 
 echo "ChickGuard System Check: ALL TESTS PASSED.\n";

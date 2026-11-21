@@ -27,16 +27,7 @@ function chickguard_init_tables(mysqli $koneksi): void
     )");
 
     mysqli_query($koneksi, "DROP TABLE IF EXISTS jadwal_pakan_minum");
-    mysqli_query($koneksi, "CREATE TABLE IF NOT EXISTS jadwal_pencahayaan (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        jenis VARCHAR(50) NOT NULL DEFAULT 'Lampu Utama',
-        waktu TIME NOT NULL,
-        durasi DECIMAL(5,2) NOT NULL DEFAULT 1.0,
-        hari VARCHAR(120) NOT NULL DEFAULT 'Semua Hari',
-        catatan VARCHAR(255) DEFAULT NULL,
-        is_active TINYINT(1) NOT NULL DEFAULT 1,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )");
+    mysqli_query($koneksi, "DROP TABLE IF EXISTS jadwal_pencahayaan");
 
     mysqli_query($koneksi, "CREATE TABLE IF NOT EXISTS log_harian (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -96,7 +87,7 @@ function chickguard_init_tables(mysqli $koneksi): void
 
     mysqli_query($koneksi, "CREATE TABLE IF NOT EXISTS pengaturan_kandang (
         id INT AUTO_INCREMENT PRIMARY KEY,
-        nama_kandang VARCHAR(100) NOT NULL DEFAULT 'Kandang 1 - Utama',
+        tanggal_masuk_ayam DATE DEFAULT '2026-10-07',
         suhu_min DECIMAL(5,2) NOT NULL DEFAULT 24.0,
         suhu_maks DECIMAL(5,2) NOT NULL DEFAULT 34.0,
         kelembaban_min DECIMAL(5,2) NOT NULL DEFAULT 55.0,
@@ -104,7 +95,7 @@ function chickguard_init_tables(mysqli $koneksi): void
         cahaya_min DECIMAL(8,2) NOT NULL DEFAULT 500,
         cahaya_maks DECIMAL(8,2) NOT NULL DEFAULT 2000,
         level_air_min DECIMAL(5,2) NOT NULL DEFAULT 50.0,
-         level_air_maks DECIMAL(5,2) NOT NULL DEFAULT 95.0,
+        level_air_maks DECIMAL(5,2) NOT NULL DEFAULT 95.0,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     )");
 
@@ -117,7 +108,6 @@ function chickguard_init_tables(mysqli $koneksi): void
     seed_notifikasi($koneksi);
     seed_pengaturan_kandang($koneksi);
     seed_jadwal_pakan($koneksi);
-    seed_jadwal_pencahayaan($koneksi);
     seed_log_harian($koneksi);
     sinkronkan_data_log_harian($koneksi);
     tambah_log_harian_otomatis($koneksi);
@@ -125,6 +115,16 @@ function chickguard_init_tables(mysqli $koneksi): void
 
 function ensure_pengaturan_kandang_extra_columns(mysqli $koneksi): void
 {
+    $checkNama = mysqli_query($koneksi, "SHOW COLUMNS FROM pengaturan_kandang LIKE 'nama_kandang'");
+    if ($checkNama && mysqli_num_rows($checkNama) > 0) {
+        mysqli_query($koneksi, "ALTER TABLE pengaturan_kandang DROP COLUMN nama_kandang");
+    }
+
+    $checkTgl = mysqli_query($koneksi, "SHOW COLUMNS FROM pengaturan_kandang LIKE 'tanggal_masuk_ayam'");
+    if ($checkTgl && mysqli_num_rows($checkTgl) === 0) {
+        mysqli_query($koneksi, "ALTER TABLE pengaturan_kandang ADD tanggal_masuk_ayam DATE DEFAULT '2026-10-07' AFTER id");
+    }
+
     $checkCahaya = mysqli_query($koneksi, "SHOW COLUMNS FROM pengaturan_kandang LIKE 'cahaya_maks'");
     if ($checkCahaya && mysqli_num_rows($checkCahaya) === 0) {
         mysqli_query($koneksi, "ALTER TABLE pengaturan_kandang ADD cahaya_maks DECIMAL(8,2) NOT NULL DEFAULT 2000.00 AFTER cahaya_min");
@@ -250,7 +250,7 @@ function seed_pengaturan_kandang(mysqli $koneksi): void
     $result = mysqli_query($koneksi, "SELECT COUNT(*) AS total FROM pengaturan_kandang");
     $row = mysqli_fetch_assoc($result);
     if ((int) ($row['total'] ?? 0) === 0) {
-        mysqli_query($koneksi, "INSERT INTO pengaturan_kandang (id, nama_kandang, suhu_min, suhu_maks, kelembaban_min, kelembaban_maks, cahaya_min, level_air_min) VALUES (1, 'Kandang 1 - Utama', 24.0, 34.0, 55.0, 75.0, 500, 50.0)");
+        mysqli_query($koneksi, "INSERT INTO pengaturan_kandang (id, tanggal_masuk_ayam, suhu_min, suhu_maks, kelembaban_min, kelembaban_maks, cahaya_min, cahaya_maks, level_air_min, level_air_maks) VALUES (1, '2026-10-07', 24.0, 34.0, 55.0, 75.0, 500, 2000, 50.0, 95.0)");
     }
 }
 
@@ -290,27 +290,6 @@ function seed_jadwal_pakan(mysqli $koneksi): void
     foreach ($data as $item) {
         [$waktu, $jumlah, $hari, $catatan] = $item;
         mysqli_stmt_bind_param($stmt, "sdss", $waktu, $jumlah, $hari, $catatan);
-        mysqli_stmt_execute($stmt);
-    }
-}
-
-function seed_jadwal_pencahayaan(mysqli $koneksi): void
-{
-    $result = mysqli_query($koneksi, "SELECT COUNT(*) AS total FROM jadwal_pencahayaan");
-    $row = mysqli_fetch_assoc($result);
-    if ((int) ($row['total'] ?? 0) > 0) {
-        return;
-    }
-
-    $data = [
-        ['Lampu Utama', '06:00:00', 12.0, 'Semua Hari', 'Pencahayaan Siang'],
-        ['Lampu Utama', '18:00:00', 4.0, 'Semua Hari', 'Pencahayaan Tambahan Malam'],
-    ];
-
-    $stmt = mysqli_prepare($koneksi, "INSERT INTO jadwal_pencahayaan (jenis, waktu, durasi, hari, catatan, is_active) VALUES (?, ?, ?, ?, ?, 1)");
-    foreach ($data as $item) {
-        [$jenis, $waktu, $durasi, $hari, $catatan] = $item;
-        mysqli_stmt_bind_param($stmt, "ssdss", $jenis, $waktu, $durasi, $hari, $catatan);
         mysqli_stmt_execute($stmt);
     }
 }

@@ -22,10 +22,9 @@ if (mysqli_num_rows($uRes) === 0) {
 
 // 1. Pengaturan Kandang
 mysqli_query($koneksi, "
-    INSERT INTO pengaturan_kandang (id, nama_kandang, tanggal_masuk_ayam, suhu_min, suhu_maks, kelembaban_min, kelembaban_maks, cahaya_min, level_air_min)
-    VALUES (1, 'Kandang Broiler Utama', DATE_SUB(CURDATE(), INTERVAL 18 DAY), 24.00, 33.00, 55.00, 75.00, 500.00, 50.00)
+    INSERT INTO pengaturan_kandang (id, tanggal_masuk_ayam, suhu_min, suhu_maks, kelembaban_min, kelembaban_maks, cahaya_min, level_air_min)
+    VALUES (1, DATE_SUB(CURDATE(), INTERVAL 18 DAY), 24.00, 33.00, 55.00, 75.00, 500.00, 50.00)
     ON DUPLICATE KEY UPDATE 
-        nama_kandang = VALUES(nama_kandang),
         tanggal_masuk_ayam = VALUES(tanggal_masuk_ayam),
         suhu_min = VALUES(suhu_min),
         suhu_maks = VALUES(suhu_maks),
@@ -61,20 +60,7 @@ while ($row = mysqli_fetch_assoc($jRes)) {
     $jadwalIds[] = (int) $row['id'];
 }
 
-// 4. Jadwal Pencahayaan
-mysqli_query($koneksi, "TRUNCATE TABLE jadwal_pencahayaan");
-$jadwalCahaya = [
-    ['Lampu Penerangan Utama', '05:30:00', 12.50, 'Semua Hari', 'Penerangan siang hari', 1],
-    ['Lampu Pemanas (Brooding)', '18:30:00', 10.00, 'Semua Hari', 'Penghangat & pencahayaan malam', 1],
-    ['Lampu Inspeksi Malam', '00:00:00', 1.00, 'Semua Hari', 'Cek kondisi kandang tengah malam', 0],
-];
-$stmtCahaya = mysqli_prepare($koneksi, "INSERT INTO jadwal_pencahayaan (jenis, waktu, durasi, hari, catatan, is_active) VALUES (?, ?, ?, ?, ?, ?)");
-foreach ($jadwalCahaya as $jc) {
-    mysqli_stmt_bind_param($stmtCahaya, "ssdssi", $jc[0], $jc[1], $jc[2], $jc[3], $jc[4], $jc[5]);
-    mysqli_stmt_execute($stmtCahaya);
-}
-
-// 5. Data Sensor (48 Jam Terakhir, per 15 Menit = 192 baris)
+// 4. Data Sensor (48 Jam Terakhir, per 15 Menit = 192 baris)
 // Menjamin grafik 24 jam di dashboard penuh dan dinamis
 mysqli_query($koneksi, "DELETE FROM data_sensor WHERE recorded_at >= DATE_SUB(NOW(), INTERVAL 3 DAY)");
 
@@ -237,7 +223,7 @@ $notifList = [
     ['Level air minum mencapai 70% (kondisi aman)', 'info', date('H:i - d M Y', strtotime('-5 hours')), 1, date('Y-m-d H:i:s', strtotime('-5 hours'))],
     ['Kipas ventilasi menyala otomatis karena suhu > 31.0°C', 'info', date('H:i - d M Y', strtotime('-7 hours')), 1, date('Y-m-d H:i:s', strtotime('-7 hours'))],
     ['Pakan siang 2.5 kg berhasil dikeluarkan', 'success', date('H:i - d M Y', strtotime('-9 hours')), 1, date('Y-m-d H:i:s', strtotime('-9 hours'))],
-    ['Lampu utama aktif sesuai jadwal pencahayaan', 'info', date('H:i - d M Y', strtotime('-12 hours')), 1, date('Y-m-d H:i:s', strtotime('-12 hours'))],
+    ['Lampu utama diaktifkan', 'info', date('H:i - d M Y', strtotime('-12 hours')), 1, date('Y-m-d H:i:s', strtotime('-12 hours'))],
     ['Pakan pagi 3.5 kg berhasil didistribusikan', 'success', date('H:i - d M Y', strtotime('-15 hours')), 1, date('Y-m-d H:i:s', strtotime('-15 hours'))],
     ['Level air sempat mendekati batas minimal (52%)', 'warning', date('H:i - d M Y', strtotime('-1 day')), 1, date('Y-m-d H:i:s', strtotime('-1 day'))],
     ['Sistem sensor ESP32 terhubung dan sinkronisasi MQTT normal', 'success', date('H:i - d M Y', strtotime('-1 day -2 hours')), 1, date('Y-m-d H:i:s', strtotime('-1 day -2 hours'))],

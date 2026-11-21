@@ -172,7 +172,6 @@ chickguard/
 │   ├── dashboard.php              # Halaman beranda pemantauan metrik & grafik
 │   ├── log_harian.php             # Halaman riwayat tabel sensor & pencarian
 │   ├── pakan.php                  # Halaman penjadwalan & log dispenser pakan
-│   ├── pencahayaan.php            # Halaman konfigurasi lampu/pencahayaan
 │   └── pengaturan.php             # Halaman profil & pengaturan ambang batas
 ├── proses/
 │   ├── ambil_data_dashboard.php   # Endpoint AJAX telemetri sensor & simulasi IoT

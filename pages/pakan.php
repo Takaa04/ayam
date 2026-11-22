@@ -119,7 +119,17 @@ $topbarSubtitle = 'Kelola jadwal pemberian pakan otomatis kandang dan tinjau log
 
       <section class="content-section">
         <div class="container-fluid px-0">
+          <div class="pakan-tabs-wrap">
+            <button type="button" class="pakan-section-tab active" data-pakan-tab="schedule">
+              <i class="bi bi-calendar-check"></i> Daftar Jadwal
+            </button>
+            <button type="button" class="pakan-section-tab" data-pakan-tab="history">
+              <i class="bi bi-clock-history"></i> Riwayat &amp; Log Pakan
+            </button>
+          </div>
+
           <!-- Schedule Table Card -->
+          <div class="pakan-tab-panel active" data-pakan-panel="schedule">
           <div class="card-soft log-card schedule-card bg-white rounded-4 p-4" style="box-shadow: 0 4px 20px rgba(77, 109, 120, 0.16); border: 1px solid rgba(255,255,255,0.85);">
             <div class="log-toolbar d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
               <div>
@@ -251,22 +261,21 @@ $topbarSubtitle = 'Kelola jadwal pemberian pakan otomatis kandang dan tinjau log
               </div>
             </form>
           </div>
+          </div>
 
           <!-- Card: Log Pemberian Pakan -->
-          <div class="card-soft log-card bg-white rounded-4 p-4 mt-4" style="box-shadow: 0 4px 20px rgba(77, 109, 120, 0.16); border: 1px solid rgba(255,255,255,0.85);">
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
+          <div class="pakan-tab-panel" data-pakan-panel="history">
+          <div class="card-soft log-card history-card bg-white rounded-4 p-4" style="box-shadow: 0 4px 20px rgba(77, 109, 120, 0.16); border: 1px solid rgba(255,255,255,0.85);">
+            <div class="log-toolbar d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
               <div>
-                <div class="d-flex align-items-center gap-2 mb-1">
-                  <div style="width: 38px; height: 38px; border-radius: 12px; background: #e6f9f0; color: #10b981; display: grid; place-items: center; font-size: 1.15rem;">
-                    <i class="fa-solid fa-clock-rotate-left"></i>
-                  </div>
-                  <h2 class="log-title fw-bold text-dark fs-5 mb-0">Log Pemberian Pakan</h2>
-                </div>
+                <h2 class="log-title fw-bold text-dark fs-5 mb-1">Log Pemberian Pakan</h2>
                 <p class="log-subtitle text-muted small mb-0">Riwayat pencatatan aktivitas pakan otomatis dari jadwal dan pemberian manual</p>
               </div>
-              <span class="badge bg-light text-secondary border px-3 py-2 rounded-pill fw-semibold">
-                <i class="bi bi-broadcast text-success me-1"></i> Realtime Logger
-              </span>
+              <div class="d-flex align-items-center gap-2 flex-wrap">
+                <span class="badge bg-light text-secondary border px-3 py-2 rounded-pill fw-semibold shadow-sm">
+                  <i class="bi bi-broadcast text-success me-1"></i> Realtime Logger
+                </span>
+              </div>
             </div>
 
             <div class="table-wrap">
@@ -325,6 +334,13 @@ $topbarSubtitle = 'Kelola jadwal pemberian pakan otomatis kandang dan tinjau log
                 </table>
               </div>
             </div>
+
+            <div class="table-footer d-flex justify-content-between align-items-center flex-wrap gap-3 mt-3 pt-3 border-top">
+              <div class="footer-left text-muted small">
+                <span>Menampilkan <strong><?= count($feedLogs) ?></strong> riwayat log pakan terbaru</span>
+              </div>
+            </div>
+          </div>
           </div>
         </div>
       </section>
@@ -349,8 +365,8 @@ $topbarSubtitle = 'Kelola jadwal pemberian pakan otomatis kandang dan tinjau log
 
   <!-- Modal Popup: Tambah / Edit Jadwal Pakan (Redesigned) -->
   <div class="modal fade" id="scheduleModal" tabindex="-1" aria-labelledby="scheduleModalTitle" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content border-0 shadow-lg" style="border-radius: 24px; overflow: hidden;">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content border-0 shadow-lg" style="border-radius: 24px;">
         <div class="modal-header border-0 pb-0 pt-4 px-4 d-flex align-items-center justify-content-between">
           <div class="d-flex align-items-center gap-3">
             <div style="width: 48px; height: 48px; border-radius: 14px; background: #e6f9f0; color: #0d9488; display: grid; place-items: center; font-size: 1.35rem;">
@@ -473,24 +489,48 @@ $topbarSubtitle = 'Kelola jadwal pemberian pakan otomatis kandang dan tinjau log
       const logStatusAlert = document.getElementById("logStatusAlert");
       const closeStatusAlert = document.getElementById("closeStatusAlert");
       const feedActionBtn = document.getElementById("feedActionBtn");
+      const pakanTabs = document.querySelectorAll(".pakan-section-tab");
+      const pakanPanels = document.querySelectorAll(".pakan-tab-panel");
+
+      function activatePakanTab(tabName) {
+        const selected = tabName === "history" ? "history" : "schedule";
+        pakanTabs.forEach(tab => tab.classList.toggle("active", tab.dataset.pakanTab === selected));
+        pakanPanels.forEach(panel => panel.classList.toggle("active", panel.dataset.pakanPanel === selected));
+        if (window.location.hash !== `#feed-${selected}`) {
+          history.replaceState(null, "", `${window.location.pathname}${window.location.search}#feed-${selected}`);
+        }
+      }
+
+      pakanTabs.forEach(tab => {
+        tab.addEventListener("click", () => activatePakanTab(tab.dataset.pakanTab));
+      });
+
+      activatePakanTab(window.location.hash === "#feed-history" ? "history" : "schedule");
+
       if (feedActionBtn) {
         feedActionBtn.addEventListener("click", async () => {
           feedActionBtn.disabled = true;
           feedActionBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Mengeluarkan Pakan...`;
           try {
-            await fetch("../proses/toggle_aktuator.php", {
+            const response = await fetch("../proses/toggle_aktuator.php", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ actuator: "motor_pakan", value: 1 })
             });
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+              throw new Error(result.message || "Perintah pemberian pakan gagal.");
+            }
             setTimeout(() => {
               feedActionBtn.disabled = false;
               feedActionBtn.innerHTML = `<i class="fa-solid fa-play me-2"></i>Beri Pakan Sekarang`;
+              window.location.hash = "feed-history";
               window.location.reload();
             }, 1200);
           } catch (e) {
             feedActionBtn.disabled = false;
             feedActionBtn.innerHTML = `<i class="fa-solid fa-play me-2"></i>Beri Pakan Sekarang`;
+            activatePakanTab("schedule");
           }
         });
       }

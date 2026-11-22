@@ -149,6 +149,93 @@ body.page-pakan .schedule-card {
   padding: 1rem 1rem 0;
 }
 
+body.page-pakan .pakan-tabs-wrap {
+  display: inline-flex;
+  gap: 0.4rem;
+  padding: 0.35rem;
+  margin-bottom: 1.25rem;
+  background: #f1f5f9;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+}
+
+body.page-pakan .pakan-section-tab {
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #64748b;
+  padding: 0.55rem 1.25rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  line-height: 1.4;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+body.page-pakan .pakan-section-tab:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.7);
+  color: #0f172a;
+}
+
+body.page-pakan .pakan-section-tab.active {
+  background: #0d9488;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(13, 148, 136, 0.28);
+}
+
+body.page-pakan .pakan-section-tab.active i {
+  color: #ffffff;
+}
+
+body.page-pakan .pakan-tab-panel {
+  display: none;
+}
+
+body.page-pakan .pakan-tab-panel.active {
+  display: block;
+}
+
+body.page-pakan .history-card .table-wrap {
+  max-height: 480px;
+  overflow-y: auto;
+  overflow-x: auto;
+}
+
+/* Custom Slim Scrollbar for Tables & Modals */
+body.page-pakan .table-wrap::-webkit-scrollbar,
+body.page-pakan .table-responsive::-webkit-scrollbar,
+body.page-pakan .modal-body::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+body.page-pakan .table-wrap::-webkit-scrollbar-track,
+body.page-pakan .table-responsive::-webkit-scrollbar-track,
+body.page-pakan .modal-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+body.page-pakan .table-wrap::-webkit-scrollbar-thumb,
+body.page-pakan .table-responsive::-webkit-scrollbar-thumb,
+body.page-pakan .modal-body::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+
+body.page-pakan .table-wrap::-webkit-scrollbar-thumb:hover,
+body.page-pakan .table-responsive::-webkit-scrollbar-thumb:hover,
+body.page-pakan .modal-body::-webkit-scrollbar-thumb:hover {
+  background: #0d9488;
+}
+
+body.page-pakan .table-wrap {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
 body.page-pakan .schedule-table {
   margin: 0;
 }
@@ -265,6 +352,15 @@ body.page-pakan .log-status-toast.warning .log-status-icon {
 }
 
 @media (max-width: 991.98px) {
+  body.page-pakan .pakan-tabs-wrap {
+    display: flex;
+    width: 100%;
+  }
+
+  body.page-pakan .pakan-tabs-wrap .pakan-section-tab {
+    flex: 1;
+  }
+
   body.page-pakan .log-toolbar {
     flex-direction: column;
     align-items: stretch;

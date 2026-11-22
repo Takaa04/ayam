@@ -27,15 +27,24 @@ function ambil_log_harian(mysqli $koneksi, string $search = '', int $page = 1, i
     if ($search !== '') {
         $where = "WHERE DATE_FORMAT(lh.waktu, '%H:%i') LIKE ?
             OR DATE_FORMAT(lh.created_at, '%Y-%m-%d') LIKE ?
+            OR DATE_FORMAT(lh.created_at, '%d %b %Y') LIKE ?
             OR lh.suhu LIKE ?
             OR lh.kelembaban LIKE ?
             OR lh.cahaya LIKE ?
             OR lh.level_air LIKE ?
             OR lh.lampu LIKE ?
-            OR DAYNAME(lh.created_at) LIKE ?";
+            OR CASE DAYNAME(lh.created_at)
+                WHEN 'Sunday' THEN 'Minggu'
+                WHEN 'Monday' THEN 'Senin'
+                WHEN 'Tuesday' THEN 'Selasa'
+                WHEN 'Wednesday' THEN 'Rabu'
+                WHEN 'Thursday' THEN 'Kamis'
+                WHEN 'Friday' THEN 'Jumat'
+                WHEN 'Saturday' THEN 'Sabtu'
+               END LIKE ?";
         $keyword = '%' . $search . '%';
-        $params = [$keyword, $keyword, $keyword, $keyword, $keyword, $keyword, $keyword, $keyword];
-        $types = 'ssssssss';
+        $params = [$keyword, $keyword, $keyword, $keyword, $keyword, $keyword, $keyword, $keyword, $keyword];
+        $types = 'sssssssss';
     }
 
     $countSql = "SELECT COUNT(*) AS total FROM log_harian lh $where";
